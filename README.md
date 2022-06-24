@@ -7,8 +7,8 @@ Rajkumar, U. et al. ecSeg: Semantic Segmentation of Metaphase Images containing 
 ## Example screenshot
 ![alt text](https://github.com/yanglum/metaseg_gui/blob/main/screenshot.png)
 
-## use:
-place metaseg_GUI.py into the ecSeg directory (or the Example directory provided here) containing the config.yaml file and subdirectory containing the ecSeg inputs and outputs
+## Instructions
+Using the Anaconda distribution of python is recommended. Read the set_up_environment.txt for instructions on setting up the environment from the Anaconda prompt. Place metaseg_GUI.py into the ecSeg directory (or the Example directory provided here) containing the config.yaml file and subdirectory containing the ecSeg inputs and outputs
 
 # Helpful information
 
