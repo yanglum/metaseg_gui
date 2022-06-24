@@ -8,7 +8,7 @@ Rajkumar, U. et al. ecSeg: Semantic Segmentation of Metaphase Images containing 
 ![alt text](https://github.com/yanglum/metaseg_gui/blob/main/screenshot.png)
 
 ## Instructions
-Using the Anaconda distribution of python is recommended.
+Using the Anaconda distribution of python is recommended
 
 2 options for setting up the environment using the Anaconda prompt, python v3.9.2
 
