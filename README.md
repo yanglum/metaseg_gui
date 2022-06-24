@@ -10,7 +10,7 @@ Rajkumar, U. et al. ecSeg: Semantic Segmentation of Metaphase Images containing 
 ## Instructions
 Using the Anaconda distribution of python is recommended.
 
-2 options for setting up the environment in conda, python v3.9.2
+2 options for setting up the environment using the Anaconda prompt, python v3.9.2
 
 1) 	conda env create -f environment.yml
 
