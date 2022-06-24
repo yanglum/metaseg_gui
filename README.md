@@ -4,6 +4,9 @@ GUI for editing metaseg labels from ecSeg (https://github.com/UCRajkumar/ecSeg) 
 ecSeg publication:
 Rajkumar, U. et al. ecSeg: Semantic Segmentation of Metaphase Images containing Extrachromosomal DNA. iScience. 21, 428-435. (2019)
 
+## Example screenshot
+![alt text](https://github.com/yanglum/metaseg_gui/blob/main/screenshot.png)
+
 ## use:
 place metaseg_GUI.py into the ecSeg directory (or the Example directory provided here) containing the config.yaml file and subdirectory containing the ecSeg inputs and outputs
 
