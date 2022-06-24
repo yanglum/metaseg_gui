@@ -1,5 +1,5 @@
 # metaseg GUI
-GUI for evaluating and editing metaseg labels from ecSeg (https://github.com/UCRajkumar/ecSeg) output
+GUI for evaluating and editing metaseg labels from ecSeg (https://github.com/UCRajkumar/ecSeg) output. Updates the labels and ec_quantification.csv file produced by ecSeg.
 
 ecSeg publication:
 Rajkumar, U. et al. ecSeg: Semantic Segmentation of Metaphase Images containing Extrachromosomal DNA. iScience. 21, 428-435. (2019)
