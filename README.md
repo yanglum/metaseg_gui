@@ -7,7 +7,7 @@ Rajkumar, U. et al. ecSeg: Semantic Segmentation of Metaphase Images containing 
 ## Example screenshot
 ![alt text](https://github.com/yanglum/metaseg_gui/blob/main/screenshot.png)
 
-## Instructions
+## Installation instructions
 Using the Anaconda distribution of python is recommended
 
 2 options for setting up the environment using the Anaconda prompt, python v3.9.2
