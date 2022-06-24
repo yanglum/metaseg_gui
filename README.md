@@ -20,7 +20,7 @@ Using the Anaconda distribution of python is recommended
     
 	  pip install opencv-python==4.5.3.56
   
-Place metaseg_GUI.py into the ecSeg directory (or the Example directory provided here) containing the config.yaml file and subdirectory containing the ecSeg inputs and outputs
+Place metaseg_gui.py into the ecSeg directory (or the Example directory provided here) containing the config.yaml file and subdirectory containing the ecSeg inputs and outputs
 
 # Helpful information
 
