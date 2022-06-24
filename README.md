@@ -5,7 +5,7 @@ ecSeg publication:
 Rajkumar, U. et al. ecSeg: Semantic Segmentation of Metaphase Images containing Extrachromosomal DNA. iScience. 21, 428-435. (2019)
 
 ## use:
-place metaseg_GUI.py into the ecSeg directory containing the config.yaml file and subdirectory containing the ecSeg inputs and outputs
+place metaseg_GUI.py into the ecSeg directory (or the Example directory provided here) containing the config.yaml file and subdirectory containing the ecSeg inputs and outputs
 
 # Helpful information
 
