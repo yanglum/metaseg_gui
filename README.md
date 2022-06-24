@@ -34,15 +34,24 @@ Mark inadequate: labels this image as "inadequate" (i.e. inadequately labeled) i
 
 ## Toolbar
 Allows manual label adjustment of the mask file
+
 Flip from: select masks to be changed
+
 Flip to: select what to change to
+
 Polygon flip: draw vertices of a polygon encirling the part of the mask image to flip. Double click to finish polygon.
+
 Reset polygon: restart drawing polygon
+
 Undo: undo last change made to mask
+
 Reset mask: reset mask to original
 
 ## Hot keys
 Tab: open image
+
 Hold left shift: display dapi image
+
 Hold control: display original image
+
 Right shift: save mask
