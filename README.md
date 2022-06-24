@@ -8,7 +8,19 @@ Rajkumar, U. et al. ecSeg: Semantic Segmentation of Metaphase Images containing 
 ![alt text](https://github.com/yanglum/metaseg_gui/blob/main/screenshot.png)
 
 ## Instructions
-Using the Anaconda distribution of python is recommended. Read the set_up_environment.txt for instructions on setting up the environment from the Anaconda prompt. Place metaseg_GUI.py into the ecSeg directory (or the Example directory provided here) containing the config.yaml file and subdirectory containing the ecSeg inputs and outputs
+Using the Anaconda distribution of python is recommended.
+
+2 options for setting up the environment in conda, python v3.9.2
+
+1) 	conda env create -f environment.yml
+
+2) 	conda create --name msgui python=3.9.2
+	
+	  pip install -r requirements.txt
+    
+	  pip install opencv-python==4.5.3.56
+  
+Place metaseg_GUI.py into the ecSeg directory (or the Example directory provided here) containing the config.yaml file and subdirectory containing the ecSeg inputs and outputs
 
 # Helpful information
 
