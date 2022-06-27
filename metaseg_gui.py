@@ -6,10 +6,12 @@
 # In[46]:
 
 
-version_no = "9"
+version_no = "10"
 
 
 # ### change log
+# v10: automate identifying doublet ecDNA, allowing for user adjustment.
+# 
 # v9: users can draw rectangle around doublet ecDNA (double minutes), which is kept track of 
 # 
 # v8: show chrDNA counts. Fixed bug with Continue checkbox. Fixed bug with Reset mask button
@@ -50,6 +52,7 @@ import pickle # for saving DM boxes boundaries
 import difflib # for get close matches
                 
 import numpy as np
+from skimage import measure
 from skimage import draw
 from skimage import io
 from skimage.color import gray2rgb
@@ -173,7 +176,7 @@ def reset_polygon(*args):
     update_temp()
 
 
-# In[ ]:
+# In[6]:
 
 
 # v9 IDENTIFY DOUBLETS (DMs)
@@ -201,14 +204,15 @@ def draw_rectangle(event):
     double_minutes['temp'] = (int(cy), int(cx))
 
 def set_rectangle(event):
-    mask_dict['temp_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
-    
-    event2canvas = lambda e, c: (c.canvasx(e.x), c.canvasy(e.y)) # converts event (window) coordinates to image coordinates
-    cx, cy = event2canvas(event, canvas)
-    
-    rr, cc = draw.rectangle_perimeter((cy, cx), double_minutes['temp'])
-    mask_dict['temp_mask'][rr, cc] = True
-    update_temp()
+    if np.random.randint(2) == 1:
+        mask_dict['temp_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
+
+        event2canvas = lambda e, c: (c.canvasx(e.x), c.canvasy(e.y)) # converts event (window) coordinates to image coordinates
+        cx, cy = event2canvas(event, canvas)
+
+        rr, cc = draw.rectangle_perimeter((cy, cx), double_minutes['temp'])
+        mask_dict['temp_mask'][rr, cc] = True
+        update_temp()
 
 def save_rectangle(event):
     event2canvas = lambda e, c: (c.canvasx(e.x), c.canvasy(e.y)) # converts event (window) coordinates to image coordinates
@@ -221,7 +225,6 @@ def save_rectangle(event):
     mask_dict['temp_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
     
     dm_count.set(len(double_minutes['rectangles']))
-    
     update_image(update_pixels=False, save_temp=False)
     
 def undo_rectangle(*args):
@@ -229,10 +232,50 @@ def undo_rectangle(*args):
     dm_count.set(len(double_minutes['rectangles']))
     update_image(update_pixels=False, save_temp=False)
 
+# v10 use find contours to look for oblong ecDNA suggestive of doublets
+def auto_dm(*args):
+    cnts = cv2.findContours(mask_dict['ecdna_mask'].astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[-2]
+    for cnt in cnts:
+        (x, y), (d1, d2), angle = cv2.fitEllipse(cnt)
+        MA = max(d1, d2)
+        ma = min(d1, d2)
+        eccentricity = (1 - ma/MA)**0.5
+        if eccentricity > 0.6:
+            xx,yy,w,h = cv2.boundingRect(cnt)
+            rr, cc = draw.rectangle_perimeter((yy, xx), (yy+h, xx+w))
+            if set(map(tuple,[rr, cc])) not in [set(map(tuple,x)) for x in double_minutes['rectangles']]:
+                double_minutes['rectangles'].append([rr, cc])
+
+    dm_count.set(len(double_minutes['rectangles']))
+    update_image(update_pixels=False, save_temp=False)
+    
+def undraw_rectangle(*args):
+    canvas.bind("<ButtonPress-1>", undraw_box)
+
+def undraw_box(event):
+    event2canvas = lambda e, c: (c.canvasx(e.x), c.canvasy(e.y)) # converts event (window) coordinates to image coordinates
+    cx, cy = event2canvas(event, canvas)
+    
+    point = [cy, cx] # r, c
+
+    for rect in double_minutes['rectangles']:
+        vertices = np.array([(max(rect[0]), min(rect[1])), # ul
+                    (max(rect[0]), max(rect[1])), # ur
+                    (min(rect[0]), max(rect[1])), # lr
+                    (min(rect[0]), min(rect[1]))]) # ll
+
+        if measure.points_in_poly([point], vertices)[0]:
+            double_minutes['rectangles'].remove(rect)
+            break
+            
+    dm_count.set(len(double_minutes['rectangles']))
+    update_image(update_pixels=False, save_temp=False)
+
 
 # In[16]:
 
 
+# this is run at the beginning when load_mask is called
 def update_image(update_pixels=False, save_temp=False):
     if 'display_masks' not in switches:
         image_dict['image1'] = ImageTk.PhotoImage(image = Image.fromarray(image_dict['image0']))
@@ -277,8 +320,8 @@ def update_image(update_pixels=False, save_temp=False):
         
         # v3 update ecDNA counts using findContours
         cnts = cv2.findContours(mask_dict['ecdna_mask'].astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[-2]
-        updated_eccount.set(len(cnts))
-        
+        updated_eccount.set(len(cnts))            
+                
         # v8 update echrDNA counts using findContours
         cnts = cv2.findContours(mask_dict['chromo_mask'].astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[-2]
         updated_chrcount.set(len(cnts))
@@ -782,9 +825,11 @@ unmasked_pixels = IntVar()
 #ttk.Label(pixel_pane, text='Unmasked:').grid(column=1, row=6, sticky=E)
 #ttk.Label(pixel_pane, textvariable=unmasked_pixels).grid(column=2, row=6, sticky=W)
 
-# v9
-ttk.Button(dm_pane, text='Draw bounding box', command=mark_dms).grid(column=1, row=1, sticky=(W,E))
-ttk.Button(dm_pane, text='Undraw box', command=undo_rectangle).grid(column=1, row=2, sticky=(W,E))
+# v9 v10
+ttk.Button(dm_pane, text='Auto ID', command=auto_dm).grid(column=1, row=1, sticky=(W,E))
+ttk.Button(dm_pane, text='Undraw box', command=undraw_rectangle).grid(column=1, row=2, sticky=(W,E))
+ttk.Button(dm_pane, text='Draw box', command=mark_dms).grid(column=2, row=1, sticky=(W,E))
+ttk.Button(dm_pane, text='Undo', command=undo_rectangle).grid(column=2, row=2, sticky=(W,E))
 
 # v2
 ecseg_count = IntVar()
