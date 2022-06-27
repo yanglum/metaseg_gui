@@ -6,10 +6,12 @@
 # In[46]:
 
 
-version_no = "10"
+version_no = "11"
 
 
 # ### change log
+# v11: add option to draw disc on ecDNA mask to identify ecDNA
+# 
 # v10: automate identifying doublet ecDNA, allowing for user adjustment
 # 
 # v9: users can draw rectangle around doublet ecDNA (double minutes), which is kept track of 
@@ -30,7 +32,7 @@ version_no = "10"
 # 
 # v1: saves mask with "updated_" prefix and when auto loading masks, looks for "updated_" masks first
 
-# In[13]:
+# In[1]:
 
 
 # tf environment, python 3.8.5, skimage 0.18.1
@@ -176,7 +178,7 @@ def reset_polygon(*args):
     update_temp()
 
 
-# In[6]:
+# In[ ]:
 
 
 # v9 IDENTIFY DOUBLETS (DMs)
@@ -273,6 +275,26 @@ def undraw_box(event):
             
     dm_count.set(len(double_minutes['rectangles']))
     update_image(update_pixels=False, save_temp=False)
+
+
+# In[ ]:
+
+
+def dot_ec(*args):  
+    canvas.bind("<ButtonPress-1>", draw_dot)
+
+def draw_dot(event):
+    event2canvas = lambda e, c: (c.canvasx(e.x), c.canvasy(e.y)) # converts event (window) coordinates to image coordinates
+    cx, cy = event2canvas(event, canvas)
+    rr, cc = draw.disk((cy, cx), dot_radius.get())
+    
+    mask_dict['back_mask'][rr,cc] = False
+    mask_dict['nuclei_mask'][rr,cc] = False
+    mask_dict['chromo_mask'][rr,cc] = False
+    mask_dict['ecdna_mask'][rr, cc] = True
+    mask_dict['trueba_mask'][rr,cc] = False
+
+    update_image(update_pixels=True, save_temp=True)
 
 
 # In[16]:
@@ -685,6 +707,8 @@ subpaned4.add(toolbar_pane)
 # v9
 subpaned5 = ttk.Panedwindow(paned, orient=VERTICAL)
 paned.add(subpaned5)
+dot_pane = ttk.Labelframe(subpaned5, text='Dot ecDNA') # v11
+subpaned5.add(dot_pane) # v2
 dm_pane = ttk.Labelframe(subpaned5, text='Identify doublets')
 subpaned5.add(dm_pane) # v2
 count_pane = ttk.Labelframe(subpaned5, text='Counts') # v3 # v9
@@ -829,10 +853,17 @@ unmasked_pixels = IntVar()
 #ttk.Label(pixel_pane, textvariable=unmasked_pixels).grid(column=2, row=6, sticky=W)
 
 # v9 v10
-ttk.Button(dm_pane, text='Auto ID', command=auto_dm).grid(column=1, row=1, sticky=(W,E))
+ttk.Button(dm_pane, text='Auto ID doublets', command=auto_dm).grid(column=1, row=1, sticky=(W,E))
 ttk.Button(dm_pane, text='Undraw box', command=undraw_rectangle).grid(column=1, row=2, sticky=(W,E))
 ttk.Button(dm_pane, text='Draw box', command=mark_dms).grid(column=2, row=1, sticky=(W,E))
-ttk.Button(dm_pane, text='Delete all', command=undo_rectangle).grid(column=2, row=2, sticky=(W,E))
+ttk.Button(dm_pane, text='Delete all boxes', command=undo_rectangle).grid(column=2, row=2, sticky=(W,E))
+
+# v11
+dot_radius = IntVar()
+dot_radius.set(4)
+ttk.Button(dot_pane, text='Draw dot', command=dot_ec).grid(column=1, row=1, sticky=(W,E))
+ttk.Label(dot_pane, text='Dot radius:').grid(column=2, row=1, sticky=E)
+ttk.Spinbox(dot_pane, from_=1, to=10, increment=1, width=3, textvariable=dot_radius).grid(column=3, row=1, sticky=E)
 
 # v2
 ecseg_count = IntVar()
@@ -844,15 +875,18 @@ updated_eccount = IntVar()
 ttk.Label(count_pane, text='ecDNA updated:').grid(column=1, row=2, sticky=E)
 ttk.Label(count_pane, textvariable=updated_eccount).grid(column=2, row=2, sticky=W)
 
+ttk.Label(count_pane, text='   ').grid(column=3, row=1, sticky=E)
+ttk.Label(count_pane, text='   ').grid(column=3, row=2, sticky=E)
+
 # v9
 dm_count = IntVar()
-ttk.Label(count_pane, text='Doublets:').grid(column=1, row=3, sticky=E)
-ttk.Label(count_pane, textvariable=dm_count).grid(column=2, row=3, sticky=W)
+ttk.Label(count_pane, text='Doublets:').grid(column=4, row=1, sticky=E)
+ttk.Label(count_pane, textvariable=dm_count).grid(column=5, row=1, sticky=W)
 
 # v8
 updated_chrcount = IntVar()
-ttk.Label(count_pane, text='chrDNA:').grid(column=1, row=4, sticky=E)
-ttk.Label(count_pane, textvariable=updated_chrcount).grid(column=2, row=4, sticky=W)
+ttk.Label(count_pane, text='chrDNA:').grid(column=4, row=2, sticky=E)
+ttk.Label(count_pane, textvariable=updated_chrcount).grid(column=5, row=2, sticky=W)
 ############################ PIXELS ###########################
 
 #################### INFORMATION ######################
