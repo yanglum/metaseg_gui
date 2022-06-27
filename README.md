@@ -95,3 +95,7 @@ Hold left shift: display dapi image
 Hold control: display original image
 
 Right shift: save mask
+
+Left alt: draw box
+
+Right alt: polygon flip
