@@ -1,9 +1,19 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-version_no = "7"
+# # metaSeg GUI
+
+# In[46]:
+
+
+version_no = "9"
+
 
 # ### change log
+# v9: users can draw rectangle around doublet ecDNA (double minutes), which is kept track of 
+# 
+# v8: show chrDNA counts. Fixed bug with Continue checkbox. Fixed bug with Reset mask button
+# 
 # v7: QoL changes: hotkeys (tab to open image, enter to save mask), resize window upon start. Continue checkbox, if checked, now shows images without updated masks. Adjust current image and mask displays. Remove pixel pane (pixel count display)
 # 
 # v6: add button for marking image as inadequate (write "inadequate" to ec_quantification.csv)
@@ -18,6 +28,12 @@ version_no = "7"
 # 
 # v1: saves mask with "updated_" prefix and when auto loading masks, looks for "updated_" masks first
 
+# In[13]:
+
+
+# tf environment, python 3.8.5, skimage 0.18.1
+# env = cv2
+
 from tkinter import *
 from tkinter import ttk, filedialog
 from tkinter import messagebox
@@ -29,6 +45,7 @@ import os
 import pathlib # for making temp directory
 import glob # for temp mask files
 import datetime # for naming temp mask files
+import pickle # for saving DM boxes boundaries
 
 import difflib # for get close matches
                 
@@ -40,6 +57,10 @@ from skimage.color import gray2rgb
 import pandas as pd
 import cv2
 
+
+# In[14]:
+
+
 def filename_counter(counter):
     if counter < 10:
         fname = "000"+str(counter)
@@ -50,6 +71,10 @@ def filename_counter(counter):
     else:
         fname = str(counter)
     return fname
+
+
+# In[15]:
+
 
 def update_temp(*args): # this is for drawing lines for polygons (temporary)
     temp_overlay = image_dict['image_overlay'].copy()
@@ -147,14 +172,75 @@ def reset_polygon(*args):
     mask_dict['temp_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
     update_temp()
 
+
+# In[ ]:
+
+
+# v9 IDENTIFY DOUBLETS (DMs)
+
+# funtion to be called when draw box button is clicked
+def mark_dms(*args):    
+    canvas.bind("<ButtonPress-1>", draw_rectangle)
+    canvas.bind("<B1-Motion>", set_rectangle)
+    canvas.bind("<ButtonRelease-1>", save_rectangle) # double clicking ends coords collection and calculates
+
+def draw_rectangle(event):
+    event2canvas = lambda e, c: (c.canvasx(e.x), c.canvasy(e.y)) # converts event (window) coordinates to image coordinates
+    cx, cy = event2canvas(event, canvas)
+    
+    # prevent out of bounds event
+    if cx < 0:
+        cx = 0
+    if cx >= image_dict['image0'].shape[1]:
+        cx = image_dict['image0'].shape[1]-1
+    if cy < 0:
+        cy = 0
+    if cy >= image_dict['image0'].shape[0]:
+        cy = image_dict['image0'].shape[0]-1
+    
+    double_minutes['temp'] = (int(cy), int(cx))
+
+def set_rectangle(event):
+    mask_dict['temp_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
+    
+    event2canvas = lambda e, c: (c.canvasx(e.x), c.canvasy(e.y)) # converts event (window) coordinates to image coordinates
+    cx, cy = event2canvas(event, canvas)
+    
+    rr, cc = draw.rectangle_perimeter((cy, cx), double_minutes['temp'])
+    mask_dict['temp_mask'][rr, cc] = True
+    update_temp()
+
+def save_rectangle(event):
+    event2canvas = lambda e, c: (c.canvasx(e.x), c.canvasy(e.y)) # converts event (window) coordinates to image coordinates
+    cx, cy = event2canvas(event, canvas)
+    
+    rr, cc = draw.rectangle_perimeter((cy, cx), double_minutes['temp'])
+    
+    double_minutes['rectangles'].append([rr, cc])
+    
+    mask_dict['temp_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
+    
+    dm_count.set(len(double_minutes['rectangles']))
+    
+    update_image(update_pixels=False, save_temp=False)
+    
+def undo_rectangle(*args):
+    double_minutes['rectangles'] = double_minutes['rectangles'][:-1]
+    dm_count.set(len(double_minutes['rectangles']))
+    update_image(update_pixels=False, save_temp=False)
+
+
+# In[16]:
+
+
 def update_image(update_pixels=False, save_temp=False):
     if 'display_masks' not in switches:
         image_dict['image1'] = ImageTk.PhotoImage(image = Image.fromarray(image_dict['image0']))
         canvas.create_image(0,0,image=image_dict['image1'],anchor="nw")
+        
     else:
         image_dict['image_overlay'] = image_dict['image0'].copy()
         
-
         for i in switches['display_masks']:
             if i == 0:
                 image_dict['image_overlay'][mask_dict['back_mask']] = [56, 108, 176]
@@ -165,7 +251,12 @@ def update_image(update_pixels=False, save_temp=False):
             elif i == 3:
                 image_dict['image_overlay'][mask_dict['ecdna_mask']] = [240, 2, 127]
             elif i == 4:
-                image_dict['image_overlay'][mask_dict['trueba_mask']] = [0, 0, 0]
+                mask_dict['dm_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
+                for rect in double_minutes['rectangles']:
+                    mask_dict['dm_mask'][tuple(rect)] = True
+                image_dict['image_overlay'][mask_dict['dm_mask']] = [0, 0, 0]
+            elif i == 5:
+                image_dict['image_overlay'][mask_dict['trueba_mask']] = [0, 0, 0]            
 
         image_dict['image1'] = ImageTk.PhotoImage(image = Image.fromarray(image_dict['image_overlay']))
         canvas.create_image(0,0,image=image_dict['image1'],anchor="nw")
@@ -186,7 +277,11 @@ def update_image(update_pixels=False, save_temp=False):
         
         # v3 update ecDNA counts using findContours
         cnts = cv2.findContours(mask_dict['ecdna_mask'].astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[-2]
-        updated_count.set(len(cnts))
+        updated_eccount.set(len(cnts))
+        
+        # v8 update echrDNA counts using findContours
+        cnts = cv2.findContours(mask_dict['chromo_mask'].astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[-2]
+        updated_chrcount.set(len(cnts))
     
     if save_temp==True: # called when masks are created, loaded, or manipulated
         pathlib.Path('./temp').mkdir(parents=True, exist_ok=True)
@@ -218,6 +313,10 @@ def get_latest_file(directory):
     latest_temp = max(temp_mask_list, key=os.path.getctime)
     return latest_temp
 
+
+# In[17]:
+
+
 def divide_masks(mask):
     reset(reset_masks=True)
     mask_dict['back_mask'][np.where(np.all(mask==[56, 108, 176], axis=-1))] = True
@@ -225,8 +324,8 @@ def divide_masks(mask):
     mask_dict['chromo_mask'][np.where(np.all(mask==[127, 201, 127], axis=-1))] = True
     mask_dict['ecdna_mask'][np.where(np.all(mask==[240, 2, 127], axis=-1))] = True
     mask_dict['trueba_mask'][np.where(np.all(mask==[0, 0, 0], axis=-1))] = True
-
-def reset(reset_image=False, reset_masks=False, reset_pixels=False): # does not reset ecseg mask
+    
+def reset(reset_image=False, reset_masks=False, reset_pixels=False, reset_dm=False): # does not reset ecseg mask
     if reset_image==True:
         # reset image
         image_dict['image1'] = ImageTk.PhotoImage(image = Image.fromarray(image_dict['image0']))
@@ -241,6 +340,7 @@ def reset(reset_image=False, reset_masks=False, reset_pixels=False): # does not 
         mask_dict['ecdna_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
         mask_dict['trueba_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
         mask_dict['temp_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
+        mask_dict['dm_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
     
     if reset_pixels==True:
         # reset pixels
@@ -250,6 +350,10 @@ def reset(reset_image=False, reset_masks=False, reset_pixels=False): # does not 
         ecdna_pixels.set(0)
 
         unmasked_pixels.set(image_pixels.get())
+    
+    if reset_dm==True:
+        double_minutes['rectangles'].clear()
+        dm_count.set(len(double_minutes['rectangles']))
     
 def show_original(*args):  
     temp_overlay = image_dict['image0'].copy()
@@ -266,12 +370,16 @@ def show_color_image(*args):
     image_dict['image1'] = ImageTk.PhotoImage(image = Image.fromarray(image_dict['color_image']))
     canvas.create_image(0,0,image=image_dict['image1'],anchor="nw")
 
+
+# In[61]:
+
+
 def populate_image_files(*args):
     all_files.clear()
     for file in os.listdir(image_path.get()):
         if file.endswith(".PNG") or file.endswith(".png") or file.endswith(".TIF") or file.endswith(".tif"):
             if continue_state.get() == 1:
-                if 'updated_'+file not in os.listdir(mask_path.get()): #v7
+                if 'updated_'+file[:-4]+'.png' not in os.listdir(mask_path.get()): #v7
                     all_files.append(file)
             elif continue_state.get() == 0:
                 all_files.append(file)
@@ -310,8 +418,8 @@ def open_file(*args):
         else:
             image_dict['image0'] = gray2rgb(image_dict['image0'])
         image_pixels.set(int(image_dict['image0'].size/3))
-
-        reset(reset_image=True, reset_masks=True, reset_pixels=True)
+    
+        reset(reset_image=True, reset_masks=True, reset_pixels=True, reset_dm=True)
         mask_dict.pop('ecseg_mask', None)
         
         canvas.config(scrollregion=canvas.bbox(ALL), width=image_dict['image1'].width(), height=image_dict['image1'].height()) # initiates window with adjusted size to image_dict['image1']
@@ -319,6 +427,10 @@ def open_file(*args):
         load_masks()
     except:
         print('open_file error')
+
+
+# In[62]:
+
 
 def save(*args):
     if unmasked_pixels.get()!=0:
@@ -363,8 +475,16 @@ def save_masks(*args): # called on by function save() (defined in tkinter)
     except:
         print('save_masks error')
     
+    # v9 save dm box coordinates
+    try:
+        with open(mask_path.get()+imgfile.get()[:-4]+'dms', "wb") as fp:   #Pickling
+            pickle.dump(double_minutes['rectangles'], fp)
+    except:
+        pass
+    
     # v4 update and save ec_quantification.csv file
-    image_dict['ec_counts'].loc[image_dict['ec_counts']['image name']==imgfile.get(), 'updated #']=updated_count.get()    
+    image_dict['ec_counts'].loc[image_dict['ec_counts']['image name']==imgfile.get(), 'updated #']=updated_eccount.get()   
+    image_dict['ec_counts'].loc[image_dict['ec_counts']['image name']==imgfile.get(), 'doublet #']=dm_count.get()
     image_dict['ec_counts'].to_csv(inpath+'/ec_quantification.csv', index=False)    
     
     # clear temp directory
@@ -398,7 +518,15 @@ def load_masks(*args):
                 mask_dict['ecseg_mask'] = io.imread(File)
             mask_dict['ecseg_mask'] = mask_dict['ecseg_mask'][:,:,:3]
     except:
-        print('load_masks error')  
+        print('load_masks error')
+    
+    # v9 load dm box coordinates
+    try:
+        with open(mask_path.get()+imgfile.get()[:-4]+'dms', "rb") as fp:   # Unpickling
+            double_minutes['rectangles'] = pickle.load(fp)
+        dm_count.set(len(double_minutes['rectangles']))
+    except:
+        pass
     
     divide_masks(mask_dict['ecseg_mask'])
     update_image(update_pixels=True, save_temp=True)
@@ -407,12 +535,16 @@ def load_masks(*args):
     image_dict['ec_counts'] = pd.read_csv(inpath+'/ec_quantification.csv')
     ecseg_count.set(int(image_dict['ec_counts'].loc[image_dict['ec_counts']['image name']==imgfile.get(), '# of ec']))
 
+
+# In[63]:
+
+
 ###### intialize ######
 config = open("config.yaml")
 var = yaml.load(config, Loader=yaml.FullLoader)['metaseg']
 inpath = var['inpath']
 
-LABELS = ['background','nuclei', 'chromosome', 'ecdna', 'true background']
+LABELS = ['background','nuclei', 'chromosome', 'ecdna', 'doublets', 'true background']
 
 # background = [56, 108, 176]
 # nuclei = [255, 255, 153]
@@ -439,12 +571,21 @@ mask_dict = {}
 # ecseg_mask is the original, never manipulate once created or loaded. Resets only when new image is opened
 # individual masks are edited with tools: back_mask, nuclei_mask, chromo_mask, ecdna_mask, blood_mask, marrow_mask, temp_mask
 
+double_minutes = {}
+double_minutes['rectangles'] = []
+
 # v4 duplicate # of ec column in ec_quantification.csv
 ecseg_df = pd.read_csv(inpath+'/ec_quantification.csv')
 if 'updated #' not in ecseg_df.columns:
     ecseg_df['updated #'] = ecseg_df['# of ec']
+if 'doublet #' not in ecseg_df.columns: # v9
+    ecseg_df['doublet #'] = [0]*len(ecseg_df['# of ec'])
 ecseg_df.to_csv(inpath+'/ec_quantification.csv', index=False)
 ###### initialize ######
+
+
+# In[73]:
+
 
 # Tkinter GUI
 root = Tk()
@@ -478,20 +619,12 @@ paned = ttk.Panedwindow(mainframe, orient=HORIZONTAL)
 paned.pack(fill=BOTH, expand=1)
 mainframe.add(paned)
 
-subpaned2 = ttk.Panedwindow(paned, orient=VERTICAL) #v7
-paned.add(subpaned2) #v7
-current_pane = ttk.Labelframe(subpaned2, text='Current image', height=85, width=160) #v7
-current_pane.grid_propagate(False) #v7
-subpaned2.add(current_pane) #v7
-currmask_pane = ttk.Labelframe(subpaned2, text='Current mask') #v7
-subpaned2.add(currmask_pane) # v7
-
 subpaned1 = ttk.Panedwindow(paned, orient=VERTICAL)
 paned.add(subpaned1)
 acq_pane = ttk.Labelframe(subpaned1, text='Image acquisition')
 subpaned1.add(acq_pane)
-count_pane = ttk.Labelframe(subpaned1, text='ecDNA count') # v3
-subpaned1.add(count_pane) # v3 # v7
+curr_pane = ttk.Labelframe(subpaned1, text='Current files')
+subpaned1.add(curr_pane)
 
 subpaned3 = ttk.Panedwindow(paned, orient=VERTICAL)
 paned.add(subpaned3)
@@ -500,13 +633,16 @@ subpaned3.add(masks_pane)
 
 subpaned4 = ttk.Panedwindow(paned, orient=VERTICAL)
 paned.add(subpaned4)
-toolbar_pane = ttk.Labelframe(subpaned4, text='Toolbar')
+toolbar_pane = ttk.Labelframe(subpaned4, text='Flip masks')
 subpaned4.add(toolbar_pane)
 
-#subpaned5 = ttk.Panedwindow(paned, orient=VERTICAL)
-#paned.add(subpaned5)
-#pixel_pane = ttk.Labelframe(subpaned5, text='Pixel count') # v2
-#subpaned5.add(pixel_pane) # v2
+# v9
+subpaned5 = ttk.Panedwindow(paned, orient=VERTICAL)
+paned.add(subpaned5)
+dm_pane = ttk.Labelframe(subpaned5, text='Identify doublets')
+subpaned5.add(dm_pane) # v2
+count_pane = ttk.Labelframe(subpaned5, text='Counts') # v3 # v9
+subpaned5.add(count_pane) # v3 # v7
 
 subpaned6 = ttk.Panedwindow(paned, orient=VERTICAL)
 paned.add(subpaned6)
@@ -550,11 +686,19 @@ md_entry = ttk.Entry(acq_pane, textvariable=mask_path, width=15)
 md_entry.grid(column=2, row=5, sticky=W)
 md_entry.insert(0, inpath+'/labels/')
 
-# v7
+# v9
 imgfile = StringVar()
-ttk.Label(current_pane, textvariable=imgfile, wraplength=150).grid(column=1, row=1, sticky=(W,E))
+ttk.Label(curr_pane, text='Image:').grid(column=1, row=6, sticky=(W,E))
+ci_entry = ttk.Entry(curr_pane, textvariable=imgfile, width=24)
+ci_entry.grid(column=2, row=6, sticky=W)
+ci_entry.config(state= "disabled")
+#ttk.Label(curr_pane, textvariable=imgfile).grid(column=2, row=6, sticky=(W,E))
 
-ttk.Label(currmask_pane, textvariable=maskfile, wraplength=150).grid(column=1, row=1, sticky=(W,E))
+ttk.Label(curr_pane, text='Mask:').grid(column=1, row=7, sticky=(W,E))
+cm_entry = ttk.Entry(curr_pane, textvariable=maskfile, width=24)
+cm_entry.grid(column=2, row=7, sticky=W)
+cm_entry.config(state= "disabled")
+#ttk.Label(curr_pane, textvariable=maskfile).grid(column=2, row=7, sticky=(W,E))
 #################### IMAGE ACQUISITION ######################
 
 ######################### REPORT ######################### 
@@ -564,7 +708,7 @@ def update_display(*args):
     update_image()
 choicesvar = StringVar(value=LABELS)
 show_masks = Listbox(masks_pane, listvariable=choicesvar, activestyle='none',
-                     selectmode='extended', exportselection=0, width=15, height=5)
+                     selectmode='extended', exportselection=0, width=15, height=len(LABELS))
 show_masks.select_set(3)
 show_masks.grid(column=1, row=1, sticky=(W,E))
 show_masks.bind("<<ListboxSelect>>", update_display)
@@ -583,24 +727,30 @@ ttk.Button(masks_pane, text='Mark inadequate', command=mark_inadequate).grid(col
 def update_flip(*args):
     switches['flip_from'] = from_.curselection()
     switches['flip_to'] = to_.curselection()
-choicesvar = StringVar(value=LABELS)
+flip_labels = LABELS[0:LABELS.index('doublets')]+LABELS[LABELS.index('doublets')+1:]
+choicesvar = StringVar(value=flip_labels)
 
 ttk.Label(toolbar_pane, text='Flip from:').grid(column=1, row=1, sticky=(W,E))
 from_ = Listbox(toolbar_pane, listvariable=choicesvar, selectmode='extended', activestyle='none',
-                exportselection=0, width=15, height=5)
+                exportselection=0, width=15, height=len(flip_labels))
 from_.grid(column=1, row=2, sticky=(W,E))
 from_.bind("<<ListboxSelect>>", update_flip)
 
 ttk.Label(toolbar_pane, text='Flip to:').grid(column=2, row=1, sticky=(W,E))
 to_ = Listbox(toolbar_pane, listvariable=choicesvar, selectmode='browse', activestyle='none',
-              exportselection=0, width=15, height=5)
+              exportselection=0, width=15, height=len(flip_labels))
 to_.grid(column=2, row=2, sticky=(W,E))
 to_.bind("<<ListboxSelect>>", update_flip)
 
 ttk.Button(toolbar_pane, text='Polygon flip', command=select_polygon).grid(column=1, row=3, sticky=(W,E))
 ttk.Button(toolbar_pane, text='Reset polygon', command=reset_polygon).grid(column=2, row=3, sticky=(W,E))
 ttk.Button(toolbar_pane, text='Undo', command=undo_manip).grid(column=1, row=4, sticky=(W,E))
-ttk.Button(toolbar_pane, text='Reset mask', command=reset).grid(column=2, row=4, sticky=(W,E))
+
+def reset_mask_button(*args):
+    divide_masks(mask_dict['ecseg_mask'])
+    update_image(update_pixels=True, save_temp=True)
+    
+ttk.Button(toolbar_pane, text='Reset mask', command=reset_mask_button).grid(column=2, row=4, sticky=(W,E))
 #################### TOOLBAR ######################
 
 ############################ PIXELS ###########################
@@ -632,15 +782,29 @@ unmasked_pixels = IntVar()
 #ttk.Label(pixel_pane, text='Unmasked:').grid(column=1, row=6, sticky=E)
 #ttk.Label(pixel_pane, textvariable=unmasked_pixels).grid(column=2, row=6, sticky=W)
 
+# v9
+ttk.Button(dm_pane, text='Draw bounding box', command=mark_dms).grid(column=1, row=1, sticky=(W,E))
+ttk.Button(dm_pane, text='Undraw box', command=undo_rectangle).grid(column=1, row=2, sticky=(W,E))
+
 # v2
 ecseg_count = IntVar()
-ttk.Label(count_pane, text='ecSeg (original):').grid(column=1, row=1, sticky=E)
+ttk.Label(count_pane, text='ecDNA original:').grid(column=1, row=1, sticky=E)
 ttk.Label(count_pane, textvariable=ecseg_count).grid(column=2, row=1, sticky=W)
 
 # v3
-updated_count = IntVar()
-ttk.Label(count_pane, text='metaseg GUI (updated):').grid(column=1, row=2, sticky=E)
-ttk.Label(count_pane, textvariable=updated_count).grid(column=2, row=2, sticky=W)
+updated_eccount = IntVar()
+ttk.Label(count_pane, text='ecDNA updated:').grid(column=1, row=2, sticky=E)
+ttk.Label(count_pane, textvariable=updated_eccount).grid(column=2, row=2, sticky=W)
+
+# v9
+dm_count = IntVar()
+ttk.Label(count_pane, text='Doublets:').grid(column=1, row=3, sticky=E)
+ttk.Label(count_pane, textvariable=dm_count).grid(column=2, row=3, sticky=W)
+
+# v8
+updated_chrcount = IntVar()
+ttk.Label(count_pane, text='chrDNA:').grid(column=1, row=4, sticky=E)
+ttk.Label(count_pane, textvariable=updated_chrcount).grid(column=2, row=4, sticky=W)
 ############################ PIXELS ###########################
 
 #################### INFORMATION ######################
@@ -682,10 +846,10 @@ def helping():
     report = Text(topframe, width=200, height=44, background='white')
     report.grid(column=1, row=1, sticky=(W,E))
     report.insert('1.0', 
-'''### Image acquisition
-Open image: opens windows dialog box for selecting image to open, then opens another windows dialog box for selecting the mask (labels) file to open. If "Mass analysis" mode is checked, will open images (and corresponding masks) from "Image directory" (and "Mask directory") sequentially each time "Open image" is clicked. If there is an updated version of the mask (filename starts with "updated_", it will be preferentially loaded. Also loads the original image file in the working directory; if subdirectory "Original" exists, will load the image file in that subdirectory with the closest name to the current image file.
+'''## Image acquisition
+Open image: opens windows dialog box for selecting image to open, then opens another windows dialog box for selecting the mask (labels) file to open. If "Mass analysis" mode is checked, will open images (and corresponding masks) from "Image directory" (and "Mask directory") sequentially each time "Open image" is clicked. If there is an updated version of the mask (filename starts with "updated_"), it will be preferentially loaded. Also loads the original image file in the working directory; if subdirectory "Original" exists, will load the image file in that subdirectory with the closest name to the current image file.
 
-Save mask: save the current mask to the "Mask directory" as a .png file with "updated_" at the beginning of the file name. This will also update the "ec_quantification.csv" file produced by ecSeg with a new column "updated #" displaying the updated ecDNA count (this overrides the "Mark inadequate" button).
+Save mask: save the current mask to the "Mask directory" as a .png file with "updated_" at the beginning of the file name. This will also update the "ec_quantification.csv" file produced by ecSeg with a new column "updated #" displaying the updated ecDNA count (this overrides the "Mark inadequate" button). Also saves doublet counts and also update "ec_quantification.csv" with a new column "doublet #" displaying the doublet count. 
 
 Mass analysis: check to enter mass analysis mode ("Open image" will open image files in "Image directory" sequentially).
 
@@ -695,27 +859,35 @@ Image directory: specify directory to image files for mass analysis mode.
 
 Mask directory: specify directory to mask files for mass analysis mode.
 
-### Show masks
-Select masks (labels) to display from the mask file. The four labels from ecSeg ("background", "nuclei", "chromosome", "ecdna") are available. Additionally, a user defined "true background" label is available as well, which is colored black. Allows for multiple selections at the same time.
+## Show masks
+Select masks (labels) to display from the mask file. The four labels from ecSeg ("background", "nuclei", "chromosome", "ecdna") are available. Additionally, user defined "doublets" and "true background" label is available as well, which are colored black. Allows for multiple selections at the same time.
 
 Hide all: hide all masks.
 
 Mark inadequate: labels this image as "inadequate" (i.e. inadequately labeled) in the "ec_quantification.csv" file, under column "updated #".
 
-### Toolbar
-Allows manual label adjustment of the mask file
+## Flip masks
+Allows manual label adjustment of the mask file.
 
-Flip from: select masks to be changed
+Flip from: select masks to be changed.
 
-Flip to: select what to change to
+Flip to: select what to change to.
 
-Polygon flip: draw vertices of a polygon encirling the part of the mask image to flip. Double click to finish polygon.
+Polygon flip: click to draw and connect vertices of a polygon encirling the part of the mask image to flip. Double click to finish polygon.
 
-Reset polygon: restart drawing polygon
+Reset polygon: restart drawing polygon.
 
-Undo: undo last change made to mask
+Undo: undo last change made to mask.
 
-Reset mask: reset mask to original''')
+Reset mask: reset mask to original.
+
+## Identify doublets
+Allows manual identification of doublets by drawing a bounding box around the doublet.
+
+Draw bounding box: click and drag to draw a box. Release mouse to finish drawing box.
+
+Undraw box: undo the last box drawn.
+''')
     report.config(state=DISABLED)
 ttk.Button(about_pane, text='Help', command=helping).grid(column=1, row=3, sticky=(W,E))
 
@@ -736,3 +908,47 @@ for child in mainframe.winfo_children():
     child.grid_configure(padx=10, pady=10)
     
 root.mainloop()
+
+
+# ## Helpful information
+# 
+# ### Image acquisition
+# Open image: opens windows dialog box for selecting image to open, then opens another windows dialog box for selecting the mask (labels) file to open. If "Mass analysis" mode is checked, will open images (and corresponding masks) from "Image directory" (and "Mask directory") sequentially each time "Open image" is clicked. If there is an updated version of the mask (filename starts with "updated_", it will be preferentially loaded. Also loads the original image file in the working directory; if subdirectory "Original" exists, will load the image file in that subdirectory with the closest name to the current image file.
+# 
+# Save mask: save the current mask to the "Mask directory" as a .png file with "updated_" at the beginning of the file name. This will also update the "ec_quantification.csv" file produced by ecSeg with a new column "updated #" displaying the updated ecDNA count (this overrides the "Mark inadequate" button).
+# 
+# Mass analysis: check to enter mass analysis mode ("Open image" will open image files in "Image directory" sequentially).
+# 
+# Continue: if both "Mass analysis" and "Continue" are checked, "Open image" will open files in "Image directory" that do not have corresponding updated masks in "Mask directory".
+# 
+# Image directory: specify directory to image files for mass analysis mode.
+# 
+# Mask directory: specify directory to mask files for mass analysis mode.
+# 
+# ### Show masks
+# Select masks (labels) to display from the mask file. The four labels from ecSeg ("background", "nuclei", "chromosome", "ecdna") are available. Additionally, a user defined "true background" label is available as well, which is colored black. Allows for multiple selections at the same time.
+# 
+# Hide all: hide all masks.
+# 
+# Mark inadequate: labels this image as "inadequate" (i.e. inadequately labeled) in the "ec_quantification.csv" file, under column "updated #".
+# 
+# ### Toolbar
+# Allows manual label adjustment of the mask file
+# 
+# Flip from: select masks to be changed
+# 
+# Flip to: select what to change to
+# 
+# Polygon flip: draw vertices of a polygon encirling the part of the mask image to flip. Double click to finish polygon.
+# 
+# Reset polygon: restart drawing polygon
+# 
+# Undo: undo last change made to mask
+# 
+# Reset mask: reset mask to original
+
+# In[ ]:
+
+
+
+
