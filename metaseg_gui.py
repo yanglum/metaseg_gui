@@ -10,7 +10,7 @@ version_no = "10"
 
 
 # ### change log
-# v10: automate identifying doublet ecDNA, allowing for user adjustment.
+# v10: automate identifying doublet ecDNA, allowing for user adjustment
 # 
 # v9: users can draw rectangle around doublet ecDNA (double minutes), which is kept track of 
 # 
@@ -226,6 +226,9 @@ def save_rectangle(event):
     
     dm_count.set(len(double_minutes['rectangles']))
     update_image(update_pixels=False, save_temp=False)
+    
+    canvas.unbind("<B1-Motion>")
+    canvas.unbind("<ButtonRelease-1>")
     
 def undo_rectangle(*args):
     double_minutes['rectangles'] = double_minutes['rectangles'][:-1]
@@ -875,7 +878,9 @@ def hot_keys(*args):
 '''tab: open image
 hold left shift: display dapi image
 hold control: display original image
-right shift: save mask''')
+right shift: save mask
+left alt: draw box
+right alt: polygon flip''')
     report.config(state=DISABLED)
 ttk.Button(about_pane, text='Hot keys', command=hot_keys).grid(column=1, row=2, sticky=(W,E))
 
@@ -927,11 +932,15 @@ Undo: undo last change made to mask.
 Reset mask: reset mask to original.
 
 ## Identify doublets
-Allows manual identification of doublets by drawing a bounding box around the doublet.
+Allows automatic and manual identification of doublet ecDNA by drawing a bounding box around the doublet.
 
-Draw bounding box: click and drag to draw a box. Release mouse to finish drawing box.
+Auto ID: auto identify doublet ecDNAs and draw a bounding box around them.
 
-Undraw box: undo the last box drawn.
+Draw box: click and drag to draw a box around a doublet. Release mouse to finish drawing box.
+
+Undraw box: click inside a box to delete it.
+
+Undo: undo the last box drawn.
 ''')
     report.config(state=DISABLED)
 ttk.Button(about_pane, text='Help', command=helping).grid(column=1, row=3, sticky=(W,E))
@@ -947,6 +956,8 @@ root.bind("<KeyRelease-Shift_L>", show_analyzed)
 root.bind("<Control_L>", show_color_image)
 root.bind("<KeyRelease-Control_L>", show_analyzed)
 root.bind("<Shift_R>", save)
+root.bind("<Alt_L>", mark_dms)
+root.bind("<Alt_R>", select_polygon)
 
 # add padding around each widget
 for child in mainframe.winfo_children():
