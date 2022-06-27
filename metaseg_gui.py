@@ -231,7 +231,7 @@ def save_rectangle(event):
     canvas.unbind("<ButtonRelease-1>")
     
 def undo_rectangle(*args):
-    double_minutes['rectangles'] = double_minutes['rectangles'][:-1]
+    double_minutes['rectangles'].clear()
     dm_count.set(len(double_minutes['rectangles']))
     update_image(update_pixels=False, save_temp=False)
 
@@ -243,7 +243,7 @@ def auto_dm(*args):
         MA = max(d1, d2)
         ma = min(d1, d2)
         eccentricity = (1 - ma/MA)**0.5
-        if eccentricity > 0.6:
+        if eccentricity > 0.55:
             xx,yy,w,h = cv2.boundingRect(cnt)
             rr, cc = draw.rectangle_perimeter((yy, xx), (yy+h, xx+w))
             if set(map(tuple,[rr, cc])) not in [set(map(tuple,x)) for x in double_minutes['rectangles']]:
@@ -832,7 +832,7 @@ unmasked_pixels = IntVar()
 ttk.Button(dm_pane, text='Auto ID', command=auto_dm).grid(column=1, row=1, sticky=(W,E))
 ttk.Button(dm_pane, text='Undraw box', command=undraw_rectangle).grid(column=1, row=2, sticky=(W,E))
 ttk.Button(dm_pane, text='Draw box', command=mark_dms).grid(column=2, row=1, sticky=(W,E))
-ttk.Button(dm_pane, text='Undo', command=undo_rectangle).grid(column=2, row=2, sticky=(W,E))
+ttk.Button(dm_pane, text='Delete all', command=undo_rectangle).grid(column=2, row=2, sticky=(W,E))
 
 # v2
 ecseg_count = IntVar()
@@ -940,7 +940,7 @@ Draw box: click and drag to draw a box around a doublet. Release mouse to finish
 
 Undraw box: click inside a box to delete it.
 
-Undo: undo the last box drawn.
+Delete: delete all boxes.
 ''')
     report.config(state=DISABLED)
 ttk.Button(about_pane, text='Help', command=helping).grid(column=1, row=3, sticky=(W,E))
