@@ -85,7 +85,7 @@ Draw box: click and drag to draw a box around a doublet. Release mouse to finish
 
 Undraw box: click inside a box to delete it.
 
-Undo: undo the last box drawn.
+Delete: delete all boxes.
 
 ## Hot keys
 Tab: open image
