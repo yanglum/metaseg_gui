@@ -19,6 +19,8 @@ Setting up the environment using the Anaconda prompt:
 Place metaseg_gui.py into the ecSeg directory (or the Example directory provided here) containing the config.yaml file and subdirectory containing the ecSeg inputs and outputs
 
 # Change log
+v10: automate identifying doublet ecDNA, allowing for user adjustment
+
 v9: users can draw rectangle around doublet ecDNA (double minutes), which is kept track of 
 
 v8: show chrDNA counts. Fixed bug with Continue checkbox. Fixed bug with Reset mask button
@@ -75,11 +77,15 @@ Undo: undo last change made to mask.
 Reset mask: reset mask to original.
 
 ## Identify doublets
-Allows manual identification of doublets by drawing a bounding box around the doublet.
+Allows automatic and manual identification of doublet ecDNA by drawing a bounding box around the doublet.
 
-Draw bounding box: click and drag to draw a box. Release mouse to finish drawing box.
+Auto ID: auto identify doublet ecDNAs and draw a bounding box around them.
 
-Undraw box: undo the last box drawn.
+Draw box: click and drag to draw a box around a doublet. Release mouse to finish drawing box.
+
+Undraw box: click inside a box to delete it.
+
+Undo: undo the last box drawn.
 
 ## Hot keys
 Tab: open image
