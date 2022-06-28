@@ -10,7 +10,7 @@ version_no = "11"
 
 
 # ### change log
-# v11: add option to draw disc on ecDNA mask to identify ecDNA
+# v11: add option to draw disk on ecDNA mask to identify ecDNA
 # 
 # v10: automate identifying doublet ecDNA, allowing for user adjustment
 # 
@@ -241,7 +241,10 @@ def undo_rectangle(*args):
 def auto_dm(*args):
     cnts = cv2.findContours(mask_dict['ecdna_mask'].astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[-2]
     for cnt in cnts:
-        (x, y), (d1, d2), angle = cv2.fitEllipse(cnt)
+        try:
+            (x, y), (d1, d2), angle = cv2.fitEllipse(cnt)
+        except:
+            continue
         MA = max(d1, d2)
         ma = min(d1, d2)
         eccentricity = (1 - ma/MA)**0.5
@@ -537,9 +540,10 @@ def save_masks(*args): # called on by function save() (defined in tkinter)
             File = filedialog.asksaveasfilename(parent=root, initialdir=inpath,
                                                 title='Save as', filetypes=[("image", ".png")])
             maskfile.set(File.split('/')[-1])
+            io.imsave(maskfile.get(), temp_filter, check_contrast=False)
         elif mass_state.get() == 1:
-            maskfile.set(mask_path.get() + 'updated_' + imgfile.get()[:-4] + '.png')
-        io.imsave(maskfile.get(), temp_filter, check_contrast=False)
+            maskfile.set('updated_' + imgfile.get()[:-4] + '.png')
+            io.imsave(mask_path.get() + maskfile.get(), temp_filter, check_contrast=False)
     except:
         print('save_masks error')
     
@@ -964,6 +968,13 @@ Reset polygon: restart drawing polygon.
 Undo: undo last change made to mask.
 
 Reset mask: reset mask to original.
+
+## Dot ecDNA
+Allows manual identification of ecDNA.
+
+Draw dot: draw a dot on the ecDNA mask.
+
+Dot radius: radius of the dot, in pixels
 
 ## Identify doublets
 Allows automatic and manual identification of doublet ecDNA by drawing a bounding box around the doublet.
