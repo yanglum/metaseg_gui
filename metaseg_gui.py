@@ -456,13 +456,13 @@ def populate_image_files(*args):
                 all_files.append(file)
 
 def clear_temp_folder(*args):
-    if pathlib.Path('/temp').is_dir():
-        files = glob.glob('/temp/*')
+    if pathlib.Path('temp').is_dir():
+        files = glob.glob('temp\*')
         for f in files:
             os.remove(f)
     
 def open_file(*args): 
-    try:
+#    try:
         if mass_state.get() == 0:
             File = filedialog.askopenfilename(parent=root, initialdir=inpath,
                                     title='Select image file to open')#, filetypes=[("image", ".png", ".tif")])
@@ -496,8 +496,8 @@ def open_file(*args):
         canvas.config(scrollregion=canvas.bbox(ALL), width=image_dict['image1'].width(), height=image_dict['image1'].height()) # initiates window with adjusted size to image_dict['image1']
         
         load_masks()
-    except:
-        print('open_file error')
+#    except:
+#        print('open_file error')
 
 
 # In[62]:
