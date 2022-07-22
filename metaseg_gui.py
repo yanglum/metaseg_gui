@@ -6,10 +6,12 @@
 # In[46]:
 
 
-version_no = "11"
+version_no = "12"
 
 
 # ### change log
+# v12: automatically load mask when opening image and not in "mass analysis" mode
+# 
 # v11: add option to draw disk on ecDNA mask to identify ecDNA
 # 
 # v10: automate identifying doublet ecDNA, allowing for user adjustment
@@ -459,10 +461,13 @@ def clear_temp_folder(*args):
     if pathlib.Path('temp').is_dir():
         files = glob.glob('temp\*')
         for f in files:
-            os.remove(f)
+            try:
+                os.remove(f)
+            except:
+                pass
     
 def open_file(*args): 
-#    try:
+    try:
         if mass_state.get() == 0:
             File = filedialog.askopenfilename(parent=root, initialdir=inpath,
                                     title='Select image file to open')#, filetypes=[("image", ".png", ".tif")])
@@ -496,8 +501,8 @@ def open_file(*args):
         canvas.config(scrollregion=canvas.bbox(ALL), width=image_dict['image1'].width(), height=image_dict['image1'].height()) # initiates window with adjusted size to image_dict['image1']
         
         load_masks()
-#    except:
-#        print('open_file error')
+    except:
+        print('open_file error')
 
 
 # In[62]:
@@ -536,12 +541,12 @@ def save_masks(*args): # called on by function save() (defined in tkinter)
     # ecdna = [240, 2, 127]
 
     try:
-        if mass_state.get() == 0:
-            File = filedialog.asksaveasfilename(parent=root, initialdir=inpath,
-                                                title='Save as', filetypes=[("image", ".png")])
-            maskfile.set(File.split('/')[-1])
-            io.imsave(maskfile.get(), temp_filter, check_contrast=False)
-        elif mass_state.get() == 1:
+        #if mass_state.get() == 0:  v12
+        #    File = filedialog.asksaveasfilename(parent=root, initialdir=inpath,
+        #                                        title='Save as', filetypes=[("image", ".png")])
+        #    maskfile.set(File.split('/')[-1])
+        #    io.imsave(maskfile.get(), temp_filter, check_contrast=False)
+        #elif mass_state.get() == 1:
             maskfile.set('updated_' + imgfile.get()[:-4] + '.png')
             io.imsave(mask_path.get() + maskfile.get(), temp_filter, check_contrast=False)
     except:
@@ -572,14 +577,14 @@ def load_masks(*args):
         messagebox.showinfo(message='Open an image file first')
         return
     try:
-        if mass_state.get() == 0:
-            File = filedialog.askopenfilename(parent=root, initialdir=inpath,
-                                        title='Select mask (labels) file to open', filetypes=[("image", ".png")])
-            maskfile.set(File.split('/')[-1])
-            mask_dict['ecseg_mask'] = io.imread(File)
-            mask_dict['ecseg_mask'] = mask_dict['ecseg_mask'][:,:,:3]
+        #if mass_state.get() == 0: v12
+        #    File = filedialog.askopenfilename(parent=root, initialdir=inpath,
+        #                                title='Select mask (labels) file to open', filetypes=[("image", ".png")])
+        #    maskfile.set(File.split('/')[-1])
+        #    mask_dict['ecseg_mask'] = io.imread(File)
+        #    mask_dict['ecseg_mask'] = mask_dict['ecseg_mask'][:,:,:3]
 
-        elif mass_state.get() == 1:
+        #elif mass_state.get() == 1:
             updatedFile = mask_path.get() + 'updated_' + imgfile.get()[:-4] + '.png'
             File = mask_path.get() + imgfile.get()[:-4] + '.png'
             if os.path.exists(updatedFile):
