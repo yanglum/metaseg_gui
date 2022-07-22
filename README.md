@@ -19,6 +19,8 @@ Setting up the environment using the Anaconda prompt:
 Place metaseg_gui.py into the ecSeg directory (or the Example directory provided here) containing the config.yaml file and subdirectory containing the ecSeg inputs and outputs
 
 # Change log
+v12: automatically load mask when opening image and not in "mass analysis" mode
+
 v11: add option to draw disk on ecDNA mask to identify ecDNA
 
 v10: automate identifying doublet ecDNA, allowing for user adjustment
