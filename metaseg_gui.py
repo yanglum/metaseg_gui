@@ -487,7 +487,8 @@ def open_file(*args):
             color_image = difflib.get_close_matches(imgfile.get(), os.listdir(inpath+'/original'), n=1, cutoff=0)[0]
             image_dict['color_image'] = io.imread(inpath+'/original/'+color_image)
         else: #v7
-            image_dict['color_image'] = io.imread(inpath+'/'+imgfile.get())
+            color_image = difflib.get_close_matches(imgfile.get(), os.listdir(inpath), n=1, cutoff=0)[0]
+            image_dict['color_image'] = io.imread(inpath+'/'+color_image)
         
         if len(np.shape(image_dict['image0'])) == 3:
             image_dict['image0'] = image_dict['image0'][:, :, :3] # make sure the image only has 3 color channels (no alpha)
