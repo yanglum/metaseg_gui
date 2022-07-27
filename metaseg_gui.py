@@ -467,7 +467,7 @@ def clear_temp_folder(*args):
                 pass
     
 def open_file(*args): 
-    try:
+    #try:
         if mass_state.get() == 0:
             File = filedialog.askopenfilename(parent=root, initialdir=inpath,
                                     title='Select image file to open')#, filetypes=[("image", ".png", ".tif")])
@@ -483,7 +483,7 @@ def open_file(*args):
         imgfile.set(File.split('/')[-1])
         image_dict['image0'] = io.imread(File) # must be .png or .tif
         
-        if os.path.isdir('original'): #v7
+        if os.path.isdir(os.path.join(inpath, 'original')): #v7
             color_image = difflib.get_close_matches(imgfile.get(), os.listdir(inpath+'/original'), n=1, cutoff=0)[0]
             image_dict['color_image'] = io.imread(inpath+'/original/'+color_image)
         else: #v7
@@ -502,8 +502,8 @@ def open_file(*args):
         canvas.config(scrollregion=canvas.bbox(ALL), width=image_dict['image1'].width(), height=image_dict['image1'].height()) # initiates window with adjusted size to image_dict['image1']
         
         load_masks()
-    except:
-        print('open_file error')
+    #except:
+    #    print('open_file error')
 
 
 # In[62]:
