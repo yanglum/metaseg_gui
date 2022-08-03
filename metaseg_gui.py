@@ -6,10 +6,12 @@
 # In[46]:
 
 
-version_no = "12"
+version_no = "13"
 
 
 # ### change log
+# v13: clear borders of image (set to background). Minor tweaks.
+#
 # v12: automatically load mask when opening image and not in "mass analysis" mode
 # 
 # v11: add option to draw disk on ecDNA mask to identify ecDNA
@@ -250,7 +252,7 @@ def auto_dm(*args):
         MA = max(d1, d2)
         ma = min(d1, d2)
         eccentricity = (1 - ma/MA)**0.5
-        if eccentricity > 0.55:
+        if eccentricity > 0.5: # v13
             xx,yy,w,h = cv2.boundingRect(cnt)
             rr, cc = draw.rectangle_perimeter((yy, xx), (yy+h, xx+w))
             if set(map(tuple,[rr, cc])) not in [set(map(tuple,x)) for x in double_minutes['rectangles']]:
@@ -449,6 +451,7 @@ def show_color_image(*args):
 
 def populate_image_files(*args):
     all_files.clear()
+    populated.set(False) # v13
     for file in os.listdir(image_path.get()):
         if file.endswith(".PNG") or file.endswith(".png") or file.endswith(".TIF") or file.endswith(".tif"):
             if continue_state.get() == 1:
@@ -469,15 +472,16 @@ def clear_temp_folder(*args):
 def open_file(*args): 
     #try:
         if mass_state.get() == 0:
-            File = filedialog.askopenfilename(parent=root, initialdir=inpath,
+            File = filedialog.askopenfilename(parent=root, initialdir=image_path.get(), # v13
                                     title='Select image file to open')#, filetypes=[("image", ".png", ".tif")])
             #print("opening %s" % File)
         elif mass_state.get() == 1:
-            populate_image_files()
+            if populated.get(): # v13
+                populate_image_files()
             File = os.path.join(image_path.get(), all_files[file_number.get()])
             file_number.set(file_number.get()+1)
             if file_number.get() == len(all_files):
-                messagebox.showinfo(message='This is the last image')
+                messagebox.showinfo(message='This will be the last image') #v13
         
         clear_temp_folder()
         imgfile.set(File.split('/')[-1])
@@ -607,8 +611,18 @@ def load_masks(*args):
         pass
     
     divide_masks(mask_dict['ecseg_mask'])
+	
+	# v13 turn border into background
+    rr = []
+    cc = []
+    for i in range(5):
+	    r, c = draw.rectangle_perimeter((i+1,i+1), end=(image_dict['image0'].shape[0]-(i+2), image_dict['image0'].shape[1]-(i+2)))
+	    rr.append(r.tolist())
+	    cc.append(c.tolist())
+    flip_masks([0,1,2,3,4], [0], np.concatenate(rr), np.concatenate(cc))
+
     update_image(update_pixels=True, save_temp=True)
-    
+      
     # v2 load ecSeg counts
     image_dict['ec_counts'] = pd.read_csv(inpath+'/ec_quantification.csv')
     ecseg_count.set(int(image_dict['ec_counts'].loc[image_dict['ec_counts']['image name']==imgfile.get(), '# of ec']))
@@ -743,6 +757,8 @@ ttk.Button(acq_pane, text='Save mask', command=save).grid(column=2, row=1, stick
 # Mass analysis checkbox
 file_number = IntVar()
 file_number.set(0)
+populated = BooleanVar() # v13
+populated.set(True) # v13
 mass_state = IntVar(value=1)
 ttk.Checkbutton(acq_pane, text='Mass analysis', variable=mass_state).grid(column=1, row=3, sticky=(W,E))
 # if checked, presumes there is an images subdir and masks subdir. Open will open images in order from images/, save will save masks to masks/
