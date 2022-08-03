@@ -8,9 +8,9 @@ Rajkumar, U. et al. ecSeg: Semantic Segmentation of Metaphase Images containing 
 ![alt text](https://github.com/yanglum/metaseg_gui/blob/main/screenshot.png)
 
 ## Installation instructions
-Using the Anaconda distribution of python is recommended
+Using the Anaconda distribution of python is recommended. Compatible with ecseg environment.
 
-Setting up the environment using the Anaconda prompt:
+Setting up the environment using the Anaconda prompt (no need if ecseg environment already installed):
 
 1) 	conda create --name msgui python=3.9.2
 2) 	pip install -r requirements.txt
@@ -19,6 +19,8 @@ Setting up the environment using the Anaconda prompt:
 Place metaseg_gui.py into the ecSeg directory (or the Example directory provided here) containing the config.yaml file and subdirectory containing the ecSeg inputs and outputs
 
 # Change log
+v14: no longer keeping track of pixel count. Switch to "draw polygon" if flip from/to listboxes are selected. Switch to "draw dot" if dot size is changed.
+
 v13: clear borders of image (set to background). Minor tweaks.
 
 v12: automatically load mask when opening image and not in "mass analysis" mode
