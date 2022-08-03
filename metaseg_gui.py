@@ -6,12 +6,14 @@
 # In[46]:
 
 
-version_no = "13"
+version_no = "14"
 
 
 # ### change log
+# v14: no longer keeping track of pixel count. Switch to "draw polygon" if flip from/to listboxes are selected. Switch to "draw dot" if dot size is changed.
+# 
 # v13: clear borders of image (set to background). Minor tweaks.
-#
+# 
 # v12: automatically load mask when opening image and not in "mass analysis" mode
 # 
 # v11: add option to draw disk on ecDNA mask to identify ecDNA
@@ -231,7 +233,7 @@ def save_rectangle(event):
     mask_dict['temp_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
     
     dm_count.set(len(double_minutes['rectangles']))
-    update_image(update_pixels=False, save_temp=False)
+    update_image(save_temp=False)
     
     canvas.unbind("<B1-Motion>")
     canvas.unbind("<ButtonRelease-1>")
@@ -239,7 +241,7 @@ def save_rectangle(event):
 def undo_rectangle(*args):
     double_minutes['rectangles'].clear()
     dm_count.set(len(double_minutes['rectangles']))
-    update_image(update_pixels=False, save_temp=False)
+    update_image(save_temp=False)
 
 # v10 use find contours to look for oblong ecDNA suggestive of doublets
 def auto_dm(*args):
@@ -259,7 +261,7 @@ def auto_dm(*args):
                 double_minutes['rectangles'].append([rr, cc])
 
     dm_count.set(len(double_minutes['rectangles']))
-    update_image(update_pixels=False, save_temp=False)
+    update_image(save_temp=False)
     
 def undraw_rectangle(*args):
     canvas.bind("<ButtonPress-1>", undraw_box)
@@ -281,7 +283,7 @@ def undraw_box(event):
             break
             
     dm_count.set(len(double_minutes['rectangles']))
-    update_image(update_pixels=False, save_temp=False)
+    update_image(save_temp=False)
 
 
 # In[ ]:
@@ -337,19 +339,6 @@ def update_image(update_pixels=False, save_temp=False):
         canvas.create_image(0,0,image=image_dict['image1'],anchor="nw")
     
     if update_pixels==True: # this should be called when masks are actually manipulated 
-        # Set pixels
-        back_pixels.set(mask_dict['back_mask'].sum())
-        nuclei_pixels.set(mask_dict['nuclei_mask'].sum())
-        chromo_pixels.set(mask_dict['chromo_mask'].sum())
-        ecdna_pixels.set(mask_dict['ecdna_mask'].sum())
-        trueba_pixels.set(mask_dict['trueba_mask'].sum())
-
-        unmasked_pixels.set(image_pixels.get() - (back_pixels.get()+
-                                                  nuclei_pixels.get()+
-                                                  chromo_pixels.get()+
-                                                  ecdna_pixels.get()+
-                                                  trueba_pixels.get()))
-        
         # v3 update ecDNA counts using findContours
         cnts = cv2.findContours(mask_dict['ecdna_mask'].astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[-2]
         updated_eccount.set(len(cnts))            
@@ -400,7 +389,7 @@ def divide_masks(mask):
     mask_dict['ecdna_mask'][np.where(np.all(mask==[240, 2, 127], axis=-1))] = True
     mask_dict['trueba_mask'][np.where(np.all(mask==[0, 0, 0], axis=-1))] = True
     
-def reset(reset_image=False, reset_masks=False, reset_pixels=False, reset_dm=False): # does not reset ecseg mask
+def reset(reset_image=False, reset_masks=False, reset_dm=False): # does not reset ecseg mask
     if reset_image==True:
         # reset image
         image_dict['image1'] = ImageTk.PhotoImage(image = Image.fromarray(image_dict['image0']))
@@ -416,15 +405,6 @@ def reset(reset_image=False, reset_masks=False, reset_pixels=False, reset_dm=Fal
         mask_dict['trueba_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
         mask_dict['temp_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
         mask_dict['dm_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
-    
-    if reset_pixels==True:
-        # reset pixels
-        back_pixels.set(0)
-        nuclei_pixels.set(0)
-        chromo_pixels.set(0)
-        ecdna_pixels.set(0)
-
-        unmasked_pixels.set(image_pixels.get())
     
     if reset_dm==True:
         double_minutes['rectangles'].clear()
@@ -470,7 +450,7 @@ def clear_temp_folder(*args):
                 pass
     
 def open_file(*args): 
-    #try:
+    try:
         if mass_state.get() == 0:
             File = filedialog.askopenfilename(parent=root, initialdir=image_path.get(), # v13
                                     title='Select image file to open')#, filetypes=[("image", ".png", ".tif")])
@@ -498,37 +478,23 @@ def open_file(*args):
             image_dict['image0'] = image_dict['image0'][:, :, :3] # make sure the image only has 3 color channels (no alpha)
         else:
             image_dict['image0'] = gray2rgb(image_dict['image0'])
-        image_pixels.set(int(image_dict['image0'].size/3))
     
-        reset(reset_image=True, reset_masks=True, reset_pixels=True, reset_dm=True)
+        reset(reset_image=True, reset_masks=True, reset_dm=True)
         mask_dict.pop('ecseg_mask', None)
         
         canvas.config(scrollregion=canvas.bbox(ALL), width=image_dict['image1'].width(), height=image_dict['image1'].height()) # initiates window with adjusted size to image_dict['image1']
         
         load_masks()
-    #except:
-    #    print('open_file error')
+    except:
+        print('open_file error')
 
 
 # In[62]:
 
 
 def save(*args):
-    if unmasked_pixels.get()!=0:
-        proceed = messagebox.askyesno(message='There are unmasked pixels! Proceed?',
-                           icon='question', title='Save mask')
-        if proceed == True:
-            save_masks()
-            messagebox.showinfo('Mask saved as:', maskfile.get())
-    elif unmasked_pixels.get()<0:
-        proceed = messagebox.askyesno(message='There are double-masked pixels! Proceed?',
-                           icon='question', title='Save mask')
-        if proceed == True:
-            save_masks()
-            messagebox.showinfo('Mask saved as:', maskfile.get())
-    else:
-        save_masks()
-        messagebox.showinfo('Mask saved as:', maskfile.get())
+    save_masks()
+    messagebox.showinfo('Mask saved as:', maskfile.get())
 
 def save_masks(*args): # called on by function save() (defined in tkinter)
     temp_filter = np.zeros((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), dtype=np.uint8)
@@ -611,18 +577,18 @@ def load_masks(*args):
         pass
     
     divide_masks(mask_dict['ecseg_mask'])
-	
-	# v13 turn border into background
+    
+    # v13 turn border into background
     rr = []
     cc = []
     for i in range(5):
-	    r, c = draw.rectangle_perimeter((i+1,i+1), end=(image_dict['image0'].shape[0]-(i+2), image_dict['image0'].shape[1]-(i+2)))
-	    rr.append(r.tolist())
-	    cc.append(c.tolist())
+        r, c = draw.rectangle_perimeter((i+1,i+1), end=(image_dict['image0'].shape[0]-(i+2), image_dict['image0'].shape[1]-(i+2)))
+        rr.append(r.tolist())
+        cc.append(c.tolist())
     flip_masks([0,1,2,3,4], [0], np.concatenate(rr), np.concatenate(cc))
-
+    
     update_image(update_pixels=True, save_temp=True)
-      
+    
     # v2 load ecSeg counts
     image_dict['ec_counts'] = pd.read_csv(inpath+'/ec_quantification.csv')
     ecseg_count.set(int(image_dict['ec_counts'].loc[image_dict['ec_counts']['image name']==imgfile.get(), '# of ec']))
@@ -823,6 +789,7 @@ ttk.Button(masks_pane, text='Mark inadequate', command=mark_inadequate).grid(col
 def update_flip(*args):
     switches['flip_from'] = from_.curselection()
     switches['flip_to'] = to_.curselection()
+    select_polygon() # v14
 flip_labels = LABELS[0:LABELS.index('doublets')]+LABELS[LABELS.index('doublets')+1:]
 choicesvar = StringVar(value=flip_labels)
 
@@ -849,35 +816,7 @@ def reset_mask_button(*args):
 ttk.Button(toolbar_pane, text='Reset mask', command=reset_mask_button).grid(column=2, row=4, sticky=(W,E))
 #################### TOOLBAR ######################
 
-############################ PIXELS ###########################
-image_pixels = IntVar()
-#ttk.Label(pixel_pane, text='Image:').grid(column=1, row=1, sticky=E)
-#ttk.Label(pixel_pane, textvariable=image_pixels).grid(column=2, row=1, sticky=W)
-
-ecdna_pixels = IntVar()
-#ttk.Label(pixel_pane, text='ecDNA:').grid(column=1, row=2, sticky=E)
-#ttk.Label(pixel_pane, textvariable=ecdna_pixels).grid(column=2, row=2, sticky=W)
-
-chromo_pixels = IntVar()
-#ttk.Label(pixel_pane, text='Chromosome:').grid(column=1, row=3, sticky=E)
-#ttk.Label(pixel_pane, textvariable=chromo_pixels).grid(column=2, row=3, sticky=W)
-
-nuclei_pixels = IntVar()
-#ttk.Label(pixel_pane, text='Nuclei:').grid(column=1, row=4, sticky=E)
-#ttk.Label(pixel_pane, textvariable=nuclei_pixels).grid(column=2, row=4, sticky=W)
-
-back_pixels = IntVar()
-#ttk.Label(pixel_pane, text='Background:').grid(column=1, row=5, sticky=E)
-#ttk.Label(pixel_pane, textvariable=back_pixels).grid(column=2, row=5, sticky=W)
-
-trueba_pixels = IntVar()
-#ttk.Label(pixel_pane, text='True background:').grid(column=1, row=6, sticky=E)
-#ttk.Label(pixel_pane, textvariable=trueba_pixels).grid(column=2, row=6, sticky=W)
-
-unmasked_pixels = IntVar()
-#ttk.Label(pixel_pane, text='Unmasked:').grid(column=1, row=6, sticky=E)
-#ttk.Label(pixel_pane, textvariable=unmasked_pixels).grid(column=2, row=6, sticky=W)
-
+########################## ecDNA #############################
 # v9 v10
 ttk.Button(dm_pane, text='Auto ID doublets', command=auto_dm).grid(column=1, row=1, sticky=(W,E))
 ttk.Button(dm_pane, text='Undraw box', command=undraw_rectangle).grid(column=1, row=2, sticky=(W,E))
@@ -889,7 +828,8 @@ dot_radius = IntVar()
 dot_radius.set(4)
 ttk.Button(dot_pane, text='Draw dot', command=dot_ec).grid(column=1, row=1, sticky=(W,E))
 ttk.Label(dot_pane, text='Dot radius:').grid(column=2, row=1, sticky=E)
-ttk.Spinbox(dot_pane, from_=1, to=10, increment=1, width=3, textvariable=dot_radius).grid(column=3, row=1, sticky=E)
+ttk.Spinbox(dot_pane, from_=1, to=10, increment=1, width=3, textvariable=dot_radius, 
+            command=dot_ec).grid(column=3, row=1, sticky=E) # v14
 
 # v2
 ecseg_count = IntVar()
@@ -913,7 +853,7 @@ ttk.Label(count_pane, textvariable=dm_count).grid(column=5, row=1, sticky=W)
 updated_chrcount = IntVar()
 ttk.Label(count_pane, text='chrDNA:').grid(column=4, row=2, sticky=E)
 ttk.Label(count_pane, textvariable=updated_chrcount).grid(column=5, row=2, sticky=W)
-############################ PIXELS ###########################
+############################ ecDNA ###########################
 
 #################### INFORMATION ######################
 # About button
