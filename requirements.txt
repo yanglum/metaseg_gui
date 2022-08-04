@@ -3,3 +3,4 @@ pandas==1.4.3
 Pillow==9.1.1
 PyYAML==6.0
 scikit_image==0.18.1
+opencv-python==4.5.3.56
