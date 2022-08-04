@@ -14,7 +14,6 @@ Setting up the environment using the Anaconda prompt (no need if ecseg environme
 
 1) 	conda create --name msgui python=3.9.2
 2) 	pip install -r requirements.txt
-3) 	pip install opencv-python==4.5.3.56
   
 Place metaseg_gui.py into the ecSeg directory (or the Example directory provided here) containing the config.yaml file and subdirectory containing the ecSeg inputs and outputs
 
