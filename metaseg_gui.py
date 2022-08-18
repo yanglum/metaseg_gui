@@ -3,13 +3,15 @@
 
 # # metaSeg GUI
 
-# In[46]:
+# In[ ]:
 
 
-version_no = "14"
+version_no = "15"
 
 
 # ### change log
+# v15: now able to adjust contrast and brightness of the dapi image. This is slow at the moment - needs to be improved. Some other minor compatibility fixes.
+# 
 # v14: no longer keeping track of pixel count. Switch to "draw polygon" if flip from/to listboxes are selected. Switch to "draw dot" if dot size is changed.
 # 
 # v13: clear borders of image (set to background). Minor tweaks.
@@ -38,7 +40,7 @@ version_no = "14"
 # 
 # v1: saves mask with "updated_" prefix and when auto loading masks, looks for "updated_" masks first
 
-# In[1]:
+# In[ ]:
 
 
 # tf environment, python 3.8.5, skimage 0.18.1
@@ -60,16 +62,14 @@ import pickle # for saving DM boxes boundaries
 import difflib # for get close matches
                 
 import numpy as np
-from skimage import measure
-from skimage import draw
-from skimage import io
+from skimage import io, exposure, draw, measure
 from skimage.color import gray2rgb
 
 import pandas as pd
 import cv2
 
 
-# In[14]:
+# In[ ]:
 
 
 def filename_counter(counter):
@@ -84,7 +84,7 @@ def filename_counter(counter):
     return fname
 
 
-# In[15]:
+# In[ ]:
 
 
 def update_temp(*args): # this is for drawing lines for polygons (temporary)
@@ -306,12 +306,12 @@ def draw_dot(event):
     update_image(update_pixels=True, save_temp=True)
 
 
-# In[16]:
+# In[ ]:
 
 
 # this is run at the beginning when load_mask is called
-def update_image(update_pixels=False, save_temp=False):
-    if 'display_masks' not in switches:
+def update_image(update_image0=False, update_pixels=False, save_temp=False): # v15
+    if ('display_masks' not in switches) or (update_image0): # v15
         image_dict['image1'] = ImageTk.PhotoImage(image = Image.fromarray(image_dict['image0']))
         canvas.create_image(0,0,image=image_dict['image1'],anchor="nw")
         
@@ -328,10 +328,9 @@ def update_image(update_pixels=False, save_temp=False):
             elif i == 3:
                 image_dict['image_overlay'][mask_dict['ecdna_mask']] = [240, 2, 127]
             elif i == 4:
-                mask_dict['dm_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
+                #mask_dict['dm_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False) # v15
                 for rect in double_minutes['rectangles']:
-                    mask_dict['dm_mask'][tuple(rect)] = True
-                image_dict['image_overlay'][mask_dict['dm_mask']] = [0, 0, 0]
+                    image_dict['image_overlay'][tuple(rect)] = [0, 0, 0]
             elif i == 5:
                 image_dict['image_overlay'][mask_dict['trueba_mask']] = [0, 0, 0]            
 
@@ -348,7 +347,7 @@ def update_image(update_pixels=False, save_temp=False):
         updated_chrcount.set(len(cnts))
     
     if save_temp==True: # called when masks are created, loaded, or manipulated
-        pathlib.Path('./temp').mkdir(parents=True, exist_ok=True)
+        pathlib.Path('temp').mkdir(parents=True, exist_ok=True)
 
         temp_filter = np.zeros((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), dtype=np.uint8)
         temp_filter = gray2rgb(temp_filter)
@@ -358,14 +357,14 @@ def update_image(update_pixels=False, save_temp=False):
         temp_filter[mask_dict['ecdna_mask']] = [240, 2, 127]
         temp_filter[mask_dict['trueba_mask']] = [0, 0, 0]
 
-        io.imsave('./temp/temp_mask'+datetime.datetime.now().strftime('%Y%m%d%H%M%S')+'.png',
+        io.imsave(os.path.join('temp', 'temp_mask'+datetime.datetime.now().strftime('%Y%m%d%H%M%S')+'.png'),
                   temp_filter, check_contrast=False)
     
 def undo_manip(*args):
     try:
-        latest_temp = get_latest_file('./temp/temp_mask*')
+        latest_temp = get_latest_file(os.path.join('temp', 'temp_mask*'))
         os.remove(latest_temp)
-        latest_temp = get_latest_file('./temp/temp_mask*')
+        latest_temp = get_latest_file(os.path.join('temp', 'temp_mask*'))
         temp_filter = io.imread(latest_temp)
         divide_masks(temp_filter)
         update_image(update_pixels=True)
@@ -378,7 +377,7 @@ def get_latest_file(directory):
     return latest_temp
 
 
-# In[17]:
+# In[ ]:
 
 
 def divide_masks(mask):
@@ -404,7 +403,7 @@ def reset(reset_image=False, reset_masks=False, reset_dm=False): # does not rese
         mask_dict['ecdna_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
         mask_dict['trueba_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
         mask_dict['temp_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
-        mask_dict['dm_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
+        #mask_dict['dm_mask'] = np.full((image_dict['image0'].shape[0], image_dict['image0'].shape[1]), False)
     
     if reset_dm==True:
         double_minutes['rectangles'].clear()
@@ -426,7 +425,7 @@ def show_color_image(*args):
     canvas.create_image(0,0,image=image_dict['image1'],anchor="nw")
 
 
-# In[61]:
+# In[ ]:
 
 
 def populate_image_files(*args):
@@ -450,46 +449,72 @@ def clear_temp_folder(*args):
                 pass
     
 def open_file(*args): 
+    if mass_state.get() == 0:
+        File = filedialog.askopenfilename(parent=root, initialdir=image_path.get(), # v13
+                                title='Select image file to open')#, filetypes=[("image", ".png", ".tif")])
+        #print("opening %s" % File)
+    elif mass_state.get() == 1:
+        if populated.get(): # v13
+            populate_image_files()
+        File = os.path.join(image_path.get(), all_files[file_number.get()])
+        imgfile.set(all_files[file_number.get()])
+        file_number.set(file_number.get()+1)
+        if file_number.get() == len(all_files):
+            messagebox.showinfo(message='This will be the last image') #v13
+
+    clear_temp_folder()
+    image_dict['image0'] = io.imread(File) # must be .png or .tif
+
+    if os.path.isdir(os.path.join(inpath, 'original')): #v7
+        color_image = difflib.get_close_matches(imgfile.get(), os.listdir(os.path.join(inpath, 'original')), n=1, cutoff=0)[0]
+        image_dict['color_image'] = io.imread(os.path.join(inpath, 'original', color_image))
+    else: #v7
+        color_image = difflib.get_close_matches(imgfile.get(), os.listdir(inpath), n=1, cutoff=0)[0]
+        image_dict['color_image'] = io.imread(os.path.join(inpath, color_image))
+
+    if len(np.shape(image_dict['image0'])) == 3:
+        image_dict['image0'] = image_dict['image0'][:, :, :3] # make sure the image only has 3 color channels (no alpha)
+    else:
+        image_dict['image0'] = gray2rgb(image_dict['image0'])
+
+    image_dict['image_reset'] = image_dict['image0'].copy() # v15 image_reset is never manipulated
+    reset(reset_image=True, reset_masks=True, reset_dm=True)
+    mask_dict.pop('ecseg_mask', None)
+
+    canvas.config(scrollregion=canvas.bbox(ALL), width=image_dict['image1'].width(), height=image_dict['image1'].height()) # initiates window with adjusted size to image_dict['image1']
+
+    load_masks()
+
+
+# In[ ]:
+
+
+# v15 image0 is only ever adjusted here
+def adjust_brightness(*args):
+    image_dict['image0'] = image_dict['image_reset'].copy()
+    if brightness.get()<0:
+        image_dict['image0'][image_dict['image0']+brightness.get()<0]=brightness.get()
+    else:
+        image_dict['image0'][image_dict['image0']+brightness.get()>255]=255-brightness.get()
     try:
-        if mass_state.get() == 0:
-            File = filedialog.askopenfilename(parent=root, initialdir=image_path.get(), # v13
-                                    title='Select image file to open')#, filetypes=[("image", ".png", ".tif")])
-            #print("opening %s" % File)
-        elif mass_state.get() == 1:
-            if populated.get(): # v13
-                populate_image_files()
-            File = os.path.join(image_path.get(), all_files[file_number.get()])
-            file_number.set(file_number.get()+1)
-            if file_number.get() == len(all_files):
-                messagebox.showinfo(message='This will be the last image') #v13
-        
-        clear_temp_folder()
-        imgfile.set(File.split('/')[-1])
-        image_dict['image0'] = io.imread(File) # must be .png or .tif
-        
-        if os.path.isdir(os.path.join(inpath, 'original')): #v7
-            color_image = difflib.get_close_matches(imgfile.get(), os.listdir(inpath+'/original'), n=1, cutoff=0)[0]
-            image_dict['color_image'] = io.imread(inpath+'/original/'+color_image)
-        else: #v7
-            color_image = difflib.get_close_matches(imgfile.get(), os.listdir(inpath), n=1, cutoff=0)[0]
-            image_dict['color_image'] = io.imread(inpath+'/'+color_image)
-        
-        if len(np.shape(image_dict['image0'])) == 3:
-            image_dict['image0'] = image_dict['image0'][:, :, :3] # make sure the image only has 3 color channels (no alpha)
-        else:
-            image_dict['image0'] = gray2rgb(image_dict['image0'])
-    
-        reset(reset_image=True, reset_masks=True, reset_dm=True)
-        mask_dict.pop('ecseg_mask', None)
-        
-        canvas.config(scrollregion=canvas.bbox(ALL), width=image_dict['image1'].width(), height=image_dict['image1'].height()) # initiates window with adjusted size to image_dict['image1']
-        
-        load_masks()
+        image_dict['image0']+=brightness.get()
     except:
-        print('open_file error')
+        pass
+    
+    image_dict['image0'] = exposure.rescale_intensity(image_dict['image0'], in_range=(minrange.get(), maxrange.get()))
+       
+def run_brightness(*args):
+    adjust_brightness()
+    update_image(update_image0=True)
+    
+def reset_to_original(*args):
+    reset(reset_image=True)
+    brightness.set(0)
+    minrange.set(0)
+    maxrange.set(255)
 
 
-# In[62]:
+# In[ ]:
 
 
 def save(*args):
@@ -518,14 +543,14 @@ def save_masks(*args): # called on by function save() (defined in tkinter)
         #    maskfile.set(File.split('/')[-1])
         #    io.imsave(maskfile.get(), temp_filter, check_contrast=False)
         #elif mass_state.get() == 1:
-            maskfile.set('updated_' + imgfile.get()[:-4] + '.png')
-            io.imsave(mask_path.get() + maskfile.get(), temp_filter, check_contrast=False)
+            maskfile.set('updated_'+imgfile.get()[:-4]+'.png')
+            io.imsave(os.path.join(mask_path.get(), maskfile.get()), temp_filter, check_contrast=False)
     except:
         print('save_masks error')
     
     # v9 save dm box coordinates
     try:
-        with open(mask_path.get()+imgfile.get()[:-4]+'dms', "wb") as fp:   #Pickling
+        with open(os.path.join(mask_path.get(), imgfile.get()[:-4]+'dms'), "wb") as fp:   #Pickling
             pickle.dump(double_minutes['rectangles'], fp)
     except:
         pass
@@ -533,7 +558,7 @@ def save_masks(*args): # called on by function save() (defined in tkinter)
     # v4 update and save ec_quantification.csv file
     image_dict['ec_counts'].loc[image_dict['ec_counts']['image name']==imgfile.get(), 'updated #']=updated_eccount.get()   
     image_dict['ec_counts'].loc[image_dict['ec_counts']['image name']==imgfile.get(), 'doublet #']=dm_count.get()
-    image_dict['ec_counts'].to_csv(inpath+'/ec_quantification.csv', index=False)    
+    image_dict['ec_counts'].to_csv(os.path.join(inpath, 'ec_quantification.csv'), index=False)    
     
     # clear temp directory
     clear_temp_folder()
@@ -541,7 +566,7 @@ def save_masks(*args): # called on by function save() (defined in tkinter)
 # v6
 def mark_inadequate(*args):
     image_dict['ec_counts'].loc[image_dict['ec_counts']['image name']==imgfile.get(), 'updated #']='inadequate'   
-    image_dict['ec_counts'].to_csv(inpath+'/ec_quantification.csv', index=False)  
+    image_dict['ec_counts'].to_csv(os.path.join(inpath, 'ec_quantification.csv'), index=False)  
     
 def load_masks(*args):
     if 'image0' not in image_dict:
@@ -556,13 +581,13 @@ def load_masks(*args):
         #    mask_dict['ecseg_mask'] = mask_dict['ecseg_mask'][:,:,:3]
 
         #elif mass_state.get() == 1:
-            updatedFile = mask_path.get() + 'updated_' + imgfile.get()[:-4] + '.png'
-            File = mask_path.get() + imgfile.get()[:-4] + '.png'
+            updatedFile = os.path.join(mask_path.get(), 'updated_'+imgfile.get()[:-4]+'.png')
+            File = os.path.join(mask_path.get(), imgfile.get()[:-4]+'.png')
             if os.path.exists(updatedFile):
-                maskfile.set(updatedFile.split('/')[-1])
+                maskfile.set('updated_'+imgfile.get()[:-4]+'.png')
                 mask_dict['ecseg_mask'] = io.imread(updatedFile)
             else:
-                maskfile.set(File.split('/')[-1])
+                maskfile.set(imgfile.get()[:-4]+'.png')
                 mask_dict['ecseg_mask'] = io.imread(File)
             mask_dict['ecseg_mask'] = mask_dict['ecseg_mask'][:,:,:3]
     except:
@@ -570,7 +595,7 @@ def load_masks(*args):
     
     # v9 load dm box coordinates
     try:
-        with open(mask_path.get()+imgfile.get()[:-4]+'dms', "rb") as fp:   # Unpickling
+        with open(os.path.join(mask_path.get(), imgfile.get()[:-4]+'dms'), "rb") as fp:   # Unpickling
             double_minutes['rectangles'] = pickle.load(fp)
         dm_count.set(len(double_minutes['rectangles']))
     except:
@@ -587,14 +612,15 @@ def load_masks(*args):
         cc.append(c.tolist())
     flip_masks([0,1,2,3,4], [0], np.concatenate(rr), np.concatenate(cc))
     
-    update_image(update_pixels=True, save_temp=True)
+    adjust_brightness() # v15
+    update_image(update_image0=True, update_pixels=True, save_temp=True) # v15
     
     # v2 load ecSeg counts
-    image_dict['ec_counts'] = pd.read_csv(inpath+'/ec_quantification.csv')
+    image_dict['ec_counts'] = pd.read_csv(os.path.join(inpath, 'ec_quantification.csv'))
     ecseg_count.set(int(image_dict['ec_counts'].loc[image_dict['ec_counts']['image name']==imgfile.get(), '# of ec']))
 
 
-# In[63]:
+# In[ ]:
 
 
 ###### intialize ######
@@ -633,16 +659,16 @@ double_minutes = {}
 double_minutes['rectangles'] = []
 
 # v4 duplicate # of ec column in ec_quantification.csv
-ecseg_df = pd.read_csv(inpath+'/ec_quantification.csv')
+ecseg_df = pd.read_csv(os.path.join(inpath, 'ec_quantification.csv'))
 if 'updated #' not in ecseg_df.columns:
     ecseg_df['updated #'] = ecseg_df['# of ec']
 if 'doublet #' not in ecseg_df.columns: # v9
     ecseg_df['doublet #'] = [0]*len(ecseg_df['# of ec'])
-ecseg_df.to_csv(inpath+'/ec_quantification.csv', index=False)
+ecseg_df.to_csv(os.path.join(inpath, 'ec_quantification.csv'), index=False)
 ###### initialize ######
 
 
-# In[73]:
+# In[ ]:
 
 
 # Tkinter GUI
@@ -688,6 +714,12 @@ subpaned3 = ttk.Panedwindow(paned, orient=VERTICAL)
 paned.add(subpaned3)
 masks_pane = ttk.Labelframe(subpaned3, text='Show masks')
 subpaned3.add(masks_pane)
+
+# v15
+subpaned0 = ttk.Panedwindow(paned, orient=VERTICAL)
+paned.add(subpaned0)
+contrast_pane = ttk.Labelframe(subpaned0, text='Adjust image')
+subpaned0.add(contrast_pane)
 
 subpaned4 = ttk.Panedwindow(paned, orient=VERTICAL)
 paned.add(subpaned4)
@@ -739,14 +771,14 @@ image_path = StringVar()
 ttk.Label(acq_pane, text='Image directory:').grid(column=1, row=4, sticky=(W,E))
 id_entry = ttk.Entry(acq_pane, textvariable=image_path, width=15)
 id_entry.grid(column=2, row=4, sticky=W)
-id_entry.insert(0, inpath+'/dapi/')
+id_entry.insert(0, os.path.join(inpath, 'dapi'))
 
 # Mask directory
 mask_path = StringVar()
 ttk.Label(acq_pane, text='Mask directory:').grid(column=1, row=5, sticky=(W,E))
 md_entry = ttk.Entry(acq_pane, textvariable=mask_path, width=15)
 md_entry.grid(column=2, row=5, sticky=W)
-md_entry.insert(0, inpath+'/labels/')
+md_entry.insert(0, os.path.join(inpath, 'labels'))
 
 # v9
 imgfile = StringVar()
@@ -784,6 +816,28 @@ ttk.Button(masks_pane, text='Hide all', command=hide_all).grid(column=1, row=2, 
 # v6
 ttk.Button(masks_pane, text='Mark inadequate', command=mark_inadequate).grid(column=1, row=3, sticky=(W,E))
 ######################### REPORT #########################
+# v15
+brightness = IntVar()
+minrange = IntVar()
+maxrange = IntVar()
+brightness.set(0)
+minrange.set(0)
+maxrange.set(255)
+    
+ttk.Label(contrast_pane, text='Minimum:').grid(column=1, row=1, sticky=(W,E))
+ttk.Label(contrast_pane, textvariable=minrange).grid(column=2, row=2, sticky=(W,E))
+ttk.Label(contrast_pane, text='Maximum:').grid(column=1, row=3, sticky=(W,E))
+ttk.Label(contrast_pane, textvariable=maxrange).grid(column=2, row=4, sticky=(W,E))
+ttk.Label(contrast_pane, text='Brightness:').grid(column=1, row=5, sticky=(W,E))
+ttk.Label(contrast_pane, textvariable=brightness).grid(column=2, row=6, sticky=(W,E))
+
+ttk.Scale(contrast_pane, orient=HORIZONTAL, length=100, from_=0, to=255,
+          variable=minrange, command=run_brightness).grid(column=1, row=2, sticky=(W,E))
+ttk.Scale(contrast_pane, orient=HORIZONTAL, length=100, from_=0, to=255,
+          variable=maxrange, command=run_brightness).grid(column=1, row=4, sticky=(W,E))
+ttk.Scale(contrast_pane, orient=HORIZONTAL, length=100, from_=-50, to=50,
+          variable=brightness, command=run_brightness).grid(column=1, row=6, sticky=(W,E))
+ttk.Button(contrast_pane, text='Reset image', command=reset_to_original).grid(column=1, row=7, sticky=(W,E))
 
 #################### TOOLBAR ######################
 def update_flip(*args):
