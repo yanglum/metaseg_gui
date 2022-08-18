@@ -13,6 +13,8 @@ Use the ecseg environment
 Place metaseg_gui.py into the ecSeg directory (or the Example directory provided here) containing the config.yaml file and subdirectory containing the ecSeg inputs and outputs
 
 # Change log
+v15: now able to adjust contrast and brightness of the dapi image. This is slow at the moment - needs to be improved. Some other minor compatibility fixes.
+
 v14: no longer keeping track of pixel count. Switch to "draw polygon" if flip from/to listboxes are selected. Switch to "draw dot" if dot size is changed.
 
 v13: clear borders of image (set to background). Minor tweaks.
