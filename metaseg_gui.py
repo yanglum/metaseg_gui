@@ -604,13 +604,13 @@ def load_masks(*args):
     divide_masks(mask_dict['ecseg_mask'])
     
     # v13 turn border into background
-    rr = []
-    cc = []
-    for i in range(5):
-        r, c = draw.rectangle_perimeter((i+1,i+1), end=(image_dict['image0'].shape[0]-(i+2), image_dict['image0'].shape[1]-(i+2)))
-        rr.append(r.tolist())
-        cc.append(c.tolist())
-    flip_masks([0,1,2,3,4], [0], np.concatenate(rr), np.concatenate(cc))
+    #rr = []
+    #cc = []
+    #for i in range(5):
+    #    r, c = draw.rectangle_perimeter((i+1,i+1), end=(image_dict['image0'].shape[0]-(i+2), image_dict['image0'].shape[1]-(i+2)))
+    #    rr.append(r.tolist())
+    #    cc.append(c.tolist())
+    #flip_masks([0,1,2,3,4], [0], np.concatenate(rr), np.concatenate(cc))
     
     adjust_brightness() # v15
     update_image(update_image0=True, update_pixels=True, save_temp=True) # v15
