@@ -15,7 +15,7 @@ Place metaseg_gui.py into the ecSeg directory (or the Example directory provided
 # Change log
 v17: fixed bug with opening images/masks when not in "mass analysis" mode
 
-v16: add chr count and tethering counts to the csv output file
+v16: add chr count to the csv output file
 
 v15: now able to adjust contrast and brightness of the dapi image. This is slow at the moment - needs to be improved. Some other minor compatibility fixes.
 
