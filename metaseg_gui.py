@@ -6,10 +6,14 @@
 # In[ ]:
 
 
-version_no = "15"
+version_no = "17"
 
 
 # ### change log
+# v17: fixed bug with opening images/masks when not in "mass analysis" mode
+# 
+# v16: add chr count to the csv output file
+# 
 # v15: now able to adjust contrast and brightness of the dapi image. This is slow at the moment - needs to be improved. Some other minor compatibility fixes.
 # 
 # v14: no longer keeping track of pixel count. Switch to "draw polygon" if flip from/to listboxes are selected. Switch to "draw dot" if dot size is changed.
@@ -449,22 +453,24 @@ def clear_temp_folder(*args):
                 pass
     
 def open_file(*args): 
+    if populated.get(): # v13 #v17
+        populate_image_files()
     if mass_state.get() == 0:
         File = filedialog.askopenfilename(parent=root, initialdir=image_path.get(), # v13
                                 title='Select image file to open')#, filetypes=[("image", ".png", ".tif")])
         #print("opening %s" % File)
+        imgfile.set(os.path.split(File)[-1]) #v17
+        file_number.set(all_files.index(imgfile.get())+1)
     elif mass_state.get() == 1:
-        if populated.get(): # v13
-            populate_image_files()
         File = os.path.join(image_path.get(), all_files[file_number.get()])
         imgfile.set(all_files[file_number.get()])
         file_number.set(file_number.get()+1)
         if file_number.get() == len(all_files):
             messagebox.showinfo(message='This will be the last image') #v13
-
     clear_temp_folder()
     image_dict['image0'] = io.imread(File) # must be .png or .tif
-
+    
+    # OPEN COLOR IMAGE
     if os.path.isdir(os.path.join(inpath, 'original')): #v7
         color_image = difflib.get_close_matches(imgfile.get(), os.listdir(os.path.join(inpath, 'original')), n=1, cutoff=0)[0]
         image_dict['color_image'] = io.imread(os.path.join(inpath, 'original', color_image))
@@ -558,6 +564,7 @@ def save_masks(*args): # called on by function save() (defined in tkinter)
     # v4 update and save ec_quantification.csv file
     image_dict['ec_counts'].loc[image_dict['ec_counts']['image name']==imgfile.get(), 'updated #']=updated_eccount.get()   
     image_dict['ec_counts'].loc[image_dict['ec_counts']['image name']==imgfile.get(), 'doublet #']=dm_count.get()
+    image_dict['ec_counts'].loc[image_dict['ec_counts']['image name']==imgfile.get(), 'chromosome #']=updated_chrcount.get()
     image_dict['ec_counts'].to_csv(os.path.join(inpath, 'ec_quantification.csv'), index=False)    
     
     # clear temp directory
@@ -604,13 +611,13 @@ def load_masks(*args):
     divide_masks(mask_dict['ecseg_mask'])
     
     # v13 turn border into background
-    #rr = []
-    #cc = []
-    #for i in range(5):
-    #    r, c = draw.rectangle_perimeter((i+1,i+1), end=(image_dict['image0'].shape[0]-(i+2), image_dict['image0'].shape[1]-(i+2)))
-    #    rr.append(r.tolist())
-    #    cc.append(c.tolist())
-    #flip_masks([0,1,2,3,4], [0], np.concatenate(rr), np.concatenate(cc))
+    rr = []
+    cc = []
+    for i in range(5):
+        r, c = draw.rectangle_perimeter((i+1,i+1), end=(image_dict['image0'].shape[0]-(i+2), image_dict['image0'].shape[1]-(i+2)))
+        rr.append(r.tolist())
+        cc.append(c.tolist())
+    flip_masks([0,1,2,3,4], [0], np.concatenate(rr), np.concatenate(cc))
     
     adjust_brightness() # v15
     update_image(update_image0=True, update_pixels=True, save_temp=True) # v15
@@ -664,6 +671,8 @@ if 'updated #' not in ecseg_df.columns:
     ecseg_df['updated #'] = ecseg_df['# of ec']
 if 'doublet #' not in ecseg_df.columns: # v9
     ecseg_df['doublet #'] = [0]*len(ecseg_df['# of ec'])
+if 'chromosome #' not in ecseg_df.columns: # v16
+    ecseg_df['chromosome #'] = [0]*len(ecseg_df['# of ec'])
 ecseg_df.to_csv(os.path.join(inpath, 'ec_quantification.csv'), index=False)
 ###### initialize ######
 
