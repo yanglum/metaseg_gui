@@ -13,6 +13,10 @@ Use the ecseg environment
 Place metaseg_gui.py into the ecSeg directory (or the Example directory provided here) containing the config.yaml file.
 
 # Change log
+v17: fixed bug with opening images/masks when not in "mass analysis" mode
+
+v16: add chr count and tethering counts to the csv output file
+
 v15: now able to adjust contrast and brightness of the dapi image. This is slow at the moment - needs to be improved. Some other minor compatibility fixes.
 
 v14: no longer keeping track of pixel count. Switch to "draw polygon" if flip from/to listboxes are selected. Switch to "draw dot" if dot size is changed.
