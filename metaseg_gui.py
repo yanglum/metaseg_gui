@@ -3,13 +3,15 @@
 
 # # metaSeg GUI
 
-# In[ ]:
+# In[1]:
 
 
-version_no = "17"
+version_no = "18"
 
 
 # ### change log
+# v18: switched from cv2 to skimage for all functions. This fixed a bug with chrDNA counts. Added a pixel number cutoff for counting ecDNA and chrDNA connected components to filter our stray marks.
+# 
 # v17: fixed bug with opening images/masks when not in "mass analysis" mode
 # 
 # v16: add chr count to the csv output file
@@ -44,11 +46,11 @@ version_no = "17"
 # 
 # v1: saves mask with "updated_" prefix and when auto loading masks, looks for "updated_" masks first
 
-# In[ ]:
+# In[2]:
 
 
 # tf environment, python 3.8.5, skimage 0.18.1
-# env = cv2
+# env = ecseg
 
 from tkinter import *
 from tkinter import ttk, filedialog
@@ -70,10 +72,62 @@ from skimage import io, exposure, draw, measure
 from skimage.color import gray2rgb
 
 import pandas as pd
-import cv2
+#import cv2
 
 
-# In[ ]:
+# In[3]:
+
+
+###### intialize ######
+cc_pixel_cutoff = 10 # to avoid counting stray marks as ecDNA or chrDNA
+
+config = open("config.yaml")
+var = yaml.load(config, Loader=yaml.FullLoader)['metaseg']
+inpath = var['inpath']
+
+LABELS = ['background','nuclei', 'chromosome', 'ecdna', 'doublets', 'true background']
+
+# background = [56, 108, 176]
+# nuclei = [255, 255, 153]
+# chromosome = [127, 201, 127]
+# ecdna = [240, 2, 127]
+
+all_files = []
+
+# for polygon mask flip tool
+ycoor = []
+xcoor = []
+
+switches = {}
+# flip_from
+# flip_to
+# display_masks
+
+image_dict = {}
+# image0 is the original, never manipulate once open
+# image_overlay is manipulated with overlaid masks instead
+# image1
+
+mask_dict = {}
+# ecseg_mask is the original, never manipulate once created or loaded. Resets only when new image is opened
+# individual masks are edited with tools: back_mask, nuclei_mask, chromo_mask, ecdna_mask, blood_mask, marrow_mask, temp_mask
+
+double_minutes = {}
+double_minutes['rectangles'] = []
+
+# v4 duplicate # of ec column in ec_quantification.csv
+ecseg_df = pd.read_csv(os.path.join(inpath, 'ec_quantification.csv'))
+if 'updated #' not in ecseg_df.columns:
+    ecseg_df['updated #'] = ecseg_df['# of ec']
+if 'doublet #' not in ecseg_df.columns: # v9
+    ecseg_df['doublet #'] = [0]*len(ecseg_df['# of ec'])
+if 'chromosome #' not in ecseg_df.columns: # v16
+    ecseg_df['chromosome #'] = [0]*len(ecseg_df['# of ec'])
+ecseg_df.to_csv(os.path.join(inpath, 'ec_quantification.csv'), index=False)
+###### initialize ######
+
+
+# In[4]:
 
 
 def filename_counter(counter):
@@ -88,7 +142,7 @@ def filename_counter(counter):
     return fname
 
 
-# In[ ]:
+# In[5]:
 
 
 def update_temp(*args): # this is for drawing lines for polygons (temporary)
@@ -188,7 +242,7 @@ def reset_polygon(*args):
     update_temp()
 
 
-# In[ ]:
+# In[6]:
 
 
 # v9 IDENTIFY DOUBLETS (DMs)
@@ -247,8 +301,22 @@ def undo_rectangle(*args):
     dm_count.set(len(double_minutes['rectangles']))
     update_image(save_temp=False)
 
-# v10 use find contours to look for oblong ecDNA suggestive of doublets
+# v18 use skimage cc analysis to look for oblong ecDNA suggestive of doublets
 def auto_dm(*args):
+    ec_cc = measure.label(mask_dict['ecdna_mask'].astype(np.uint8), connectivity=2, return_num=False)
+    ec_props = measure.regionprops(ec_cc)
+    for region in ec_props:
+        if region.eccentricity > 0.6:
+            min_row, min_col, max_row, max_col = region.bbox
+            rr, cc = draw.rectangle_perimeter((min_row, min_col), (max_row, max_col))
+            if set(map(tuple,[rr, cc])) not in [set(map(tuple,x)) for x in double_minutes['rectangles']]:
+                double_minutes['rectangles'].append([rr, cc])
+
+    dm_count.set(len(double_minutes['rectangles']))
+    update_image(save_temp=False)           
+
+# v10 use find contours to look for oblong ecDNA suggestive of doublets
+"""def auto_dm(*args):
     cnts = cv2.findContours(mask_dict['ecdna_mask'].astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[-2]
     for cnt in cnts:
         try:
@@ -265,7 +333,7 @@ def auto_dm(*args):
                 double_minutes['rectangles'].append([rr, cc])
 
     dm_count.set(len(double_minutes['rectangles']))
-    update_image(save_temp=False)
+    update_image(save_temp=False)"""
     
 def undraw_rectangle(*args):
     canvas.bind("<ButtonPress-1>", undraw_box)
@@ -290,7 +358,7 @@ def undraw_box(event):
     update_image(save_temp=False)
 
 
-# In[ ]:
+# In[7]:
 
 
 def dot_ec(*args):  
@@ -310,7 +378,7 @@ def draw_dot(event):
     update_image(update_pixels=True, save_temp=True)
 
 
-# In[ ]:
+# In[8]:
 
 
 # this is run at the beginning when load_mask is called
@@ -342,13 +410,27 @@ def update_image(update_image0=False, update_pixels=False, save_temp=False): # v
         canvas.create_image(0,0,image=image_dict['image1'],anchor="nw")
     
     if update_pixels==True: # this should be called when masks are actually manipulated 
-        # v3 update ecDNA counts using findContours
-        cnts = cv2.findContours(mask_dict['ecdna_mask'].astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[-2]
-        updated_eccount.set(len(cnts))            
-                
-        # v8 update echrDNA counts using findContours
-        cnts = cv2.findContours(mask_dict['chromo_mask'].astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[-2]
-        updated_chrcount.set(len(cnts))
+        # v3 update ecDNA counts using skimage cc analysis
+        #ec_cc, ec_count = measure.label(mask_dict['ecdna_mask'].astype(np.uint8), connectivity=2, return_num=True) # v18
+        
+        ec_cc = measure.label(mask_dict['ecdna_mask'].astype(np.uint8), connectivity=2, return_num=False)
+        ec_props = measure.regionprops(ec_cc)
+        ec_count = 0
+        for region in ec_props:
+            if region.area > cc_pixel_cutoff:
+                ec_count += 1
+        updated_eccount.set(ec_count)
+         
+        # v8 update echrDNA counts using skimage cc analysis
+        #chr_cc, chr_count = measure.label(mask_dict['chromo_mask'].astype(np.uint8), connectivity=2, return_num=True) # v18
+        
+        chr_cc = measure.label(mask_dict['chromo_mask'].astype(np.uint8), connectivity=2, return_num=False)
+        chr_props = measure.regionprops(chr_cc)
+        chr_count = 0
+        for region in chr_props:
+            if region.area > cc_pixel_cutoff:
+                chr_count += 1
+        updated_chrcount.set(chr_count) # v18
     
     if save_temp==True: # called when masks are created, loaded, or manipulated
         pathlib.Path('temp').mkdir(parents=True, exist_ok=True)
@@ -381,7 +463,7 @@ def get_latest_file(directory):
     return latest_temp
 
 
-# In[ ]:
+# In[9]:
 
 
 def divide_masks(mask):
@@ -429,7 +511,7 @@ def show_color_image(*args):
     canvas.create_image(0,0,image=image_dict['image1'],anchor="nw")
 
 
-# In[ ]:
+# In[10]:
 
 
 def populate_image_files(*args):
@@ -492,7 +574,7 @@ def open_file(*args):
     load_masks()
 
 
-# In[ ]:
+# In[11]:
 
 
 # v15 image0 is only ever adjusted here
@@ -520,7 +602,7 @@ def reset_to_original(*args):
     maxrange.set(255)
 
 
-# In[ ]:
+# In[12]:
 
 
 def save(*args):
@@ -627,57 +709,7 @@ def load_masks(*args):
     ecseg_count.set(int(image_dict['ec_counts'].loc[image_dict['ec_counts']['image name']==imgfile.get(), '# of ec']))
 
 
-# In[ ]:
-
-
-###### intialize ######
-config = open("config.yaml")
-var = yaml.load(config, Loader=yaml.FullLoader)['metaseg']
-inpath = var['inpath']
-
-LABELS = ['background','nuclei', 'chromosome', 'ecdna', 'doublets', 'true background']
-
-# background = [56, 108, 176]
-# nuclei = [255, 255, 153]
-# chromosome = [127, 201, 127]
-# ecdna = [240, 2, 127]
-
-all_files = []
-
-# for polygon mask flip tool
-ycoor = []
-xcoor = []
-
-switches = {}
-# flip_from
-# flip_to
-# display_masks
-
-image_dict = {}
-# image0 is the original, never manipulate once open
-# image_overlay is manipulated with overlaid masks instead
-# image1
-
-mask_dict = {}
-# ecseg_mask is the original, never manipulate once created or loaded. Resets only when new image is opened
-# individual masks are edited with tools: back_mask, nuclei_mask, chromo_mask, ecdna_mask, blood_mask, marrow_mask, temp_mask
-
-double_minutes = {}
-double_minutes['rectangles'] = []
-
-# v4 duplicate # of ec column in ec_quantification.csv
-ecseg_df = pd.read_csv(os.path.join(inpath, 'ec_quantification.csv'))
-if 'updated #' not in ecseg_df.columns:
-    ecseg_df['updated #'] = ecseg_df['# of ec']
-if 'doublet #' not in ecseg_df.columns: # v9
-    ecseg_df['doublet #'] = [0]*len(ecseg_df['# of ec'])
-if 'chromosome #' not in ecseg_df.columns: # v16
-    ecseg_df['chromosome #'] = [0]*len(ecseg_df['# of ec'])
-ecseg_df.to_csv(os.path.join(inpath, 'ec_quantification.csv'), index=False)
-###### initialize ######
-
-
-# In[ ]:
+# In[13]:
 
 
 # Tkinter GUI
