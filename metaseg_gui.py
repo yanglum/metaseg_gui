@@ -10,7 +10,7 @@ version_no = "18"
 
 
 # ### change log
-# v18: switched from cv2 to skimage for all functions. This fixed a bug with chrDNA counts. Added a pixel number cutoff for counting ecDNA and chrDNA connected components to filter our stray marks.
+# v18: switched from cv2 to skimage for all functions. This fixed a bug with chrDNA counts. Added a pixel number cutoff for counting ecDNA and chrDNA connected components to filter out stray marks.
 # 
 # v17: fixed bug with opening images/masks when not in "mass analysis" mode
 # 
