@@ -1,6 +1,9 @@
 # metaseg GUI
 GUI for evaluating and editing metaseg labels from ecSeg (https://github.com/UCRajkumar/ecSeg) output. Updates the labels and ec_quantification.csv file produced by ecSeg.
 
+Run prometaphase_spread_ecSeg_Analyze_tethering.py to analyze ecDNA untethering using the ecSeg-m (metaseg) segmentation mask.
+Run prometaphase_spread_ecSeg_Analyzing_IF_stain.py to analyze/quantify immunofluorescent stains using the ecSeg-m (metaseg) segmentation mask.
+
 ecSeg publication:
 Rajkumar, U. et al. ecSeg: Semantic Segmentation of Metaphase Images containing Extrachromosomal DNA. iScience. 21, 428-435. (2019)
 
