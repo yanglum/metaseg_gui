@@ -98,15 +98,15 @@ def analyze_stains(inpath, channels):
 			stain_mask = stain_mask==255
 
 			pixel_count = np.count_nonzero(stain_mask)
-			total_intensity = sum(image[stain_mask])
+			total_intensity = sum(image[stain_mask].astype(np.uint8)) # convert to uint8 from uint16 to avoid overflow	
 			
 			chrstain_mask = stain_mask & chr_mask
 			chr_channel_pixel_count = np.count_nonzero(chrstain_mask)
-			chr_channel_total_intensity = sum(image[chr_mask])
+			chr_channel_total_intensity = sum(image[chr_mask].astype(np.uint8))
 			
 			ecstain_mask = stain_mask & ec_mask
 			ec_channel_pixel_count = np.count_nonzero(ecstain_mask)
-			ec_channel_total_intensity = sum(image[ec_mask])				 
+			ec_channel_total_intensity = sum(image[ec_mask].astype(np.uint8))				 
 
 			# append channel lists
 			channel_list_dict[channel+'_pixel_count'].append(pixel_count)
